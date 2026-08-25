@@ -187,7 +187,8 @@ export function MessageItem({ message, personaId, isAutoChat = false }: MessageI
 
           {/* Quick Action Toolbar on hover */}
           <div className="flex items-center gap-1.5 mt-2 pt-1 border-t border-zinc-500/10 opacity-0 group-hover/msg:opacity-100 transition-opacity">
-            <button
+            {!isUser && 'speechSynthesis' in window && (
+              <button
               onClick={handleCopy}
               className="p-1 rounded-md hover:bg-black/10 text-xs transition-colors flex items-center gap-1 opacity-70 hover:opacity-100"
               title="Copy message"
@@ -196,7 +197,6 @@ export function MessageItem({ message, personaId, isAutoChat = false }: MessageI
               <span className="text-[11px]">{copied ? 'Copied' : 'Copy'}</span>
             </button>
 
-            {!isUser && 'speechSynthesis' in window && (
               <button
                 onClick={handleSpeak}
                 className="p-1 rounded-md hover:bg-black/10 text-xs transition-colors flex items-center gap-1 opacity-70 hover:opacity-100 ml-1"
