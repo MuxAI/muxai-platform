@@ -6,9 +6,9 @@ export const PERSONAS: Persona[] = [
   {
     id: 'Sera16',
     name: 'Seraphina v1.6',
-    desc: 'The featured flagship AI icon of MuxAI with unmatched intelligence and charisma',
+    desc: 'The featured AI icon of MuxAI with unmatched intelligence and charisma',
     tag: '28F',
-    role: 'Flagship AI',
+    role: 'Default All-Rounder',
     badgeColor: '#ec4899',
     greeting: "Hey there! I'm Seraphina. Ready to explore ideas, solve problems, or build something brilliant together?",
     avatarSeed: 'seraphina',

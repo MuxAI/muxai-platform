@@ -184,33 +184,6 @@ export function MessageItem({ message, personaId, isAutoChat = false }: MessageI
               )}
             </div>
           )}
-
-          {/* Quick Action Toolbar on hover */}
-          <div className="flex items-center gap-1.5 mt-2 pt-1 border-t border-zinc-500/10 opacity-0 group-hover/msg:opacity-100 transition-opacity">
-            {!isUser && 'speechSynthesis' in window && (
-              <button
-              onClick={handleCopy}
-              className="p-1 rounded-md hover:bg-black/10 text-xs transition-colors flex items-center gap-1 opacity-70 hover:opacity-100"
-              title="Copy message"
-            >
-              {copied ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
-              <span className="text-[11px]">{copied ? 'Copied' : 'Copy'}</span>
-            </button>
-
-              <button
-                onClick={handleSpeak}
-                className="p-1 rounded-md hover:bg-black/10 text-xs transition-colors flex items-center gap-1 opacity-70 hover:opacity-100 ml-1"
-                title="Read aloud"
-              >
-                {speaking ? (
-                  <VolumeX size={13} className="text-pink-500" />
-                ) : (
-                  <Volume2 size={13} />
-                )}
-                <span className="text-[11px]">{speaking ? 'Stop' : 'Speak'}</span>
-              </button>
-            )}
-          </div>
         </div>
 
         {isUser && !isAutoChat && <UserAvatar size={42} />}
