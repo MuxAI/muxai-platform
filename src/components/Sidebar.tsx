@@ -111,7 +111,7 @@ export function Sidebar({
                 MuxAI
               </h1>
               <span className="text-[10px] text-pink-500 font-semibold tracking-wider uppercase">
-                Self-Hosted Studio
+                Persona Studio
               </span>
             </div>
           </div>
@@ -243,7 +243,7 @@ export function Sidebar({
           <div className="flex items-center justify-between text-[11px]">
             <span className="flex items-center gap-1.5">
               <Server size={12} className={isOnline ? 'text-lime-500' : 'text-zinc-500'} />
-              <span>Ollama Self-Hosted</span>
+              <span>Server Status</span>
             </span>
             <span
               className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
@@ -252,11 +252,11 @@ export function Sidebar({
                   : 'bg-zinc-500/10 text-zinc-400'
               }`}
             >
-              {isOnline ? 'ONLINE' : 'STANDBY'}
+              {isOnline ? 'ONLINE' : 'OFFLINE'}
             </span>
           </div>
           <div className="text-[10px] text-center opacity-60">
-            MuxAI Platform © 2026 · HuanMux
+            © Makron, HuanMux & MuxAI 2026
           </div>
         </div>
       </aside>

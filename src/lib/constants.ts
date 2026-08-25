@@ -68,7 +68,7 @@ export const PERSONAS: Persona[] = [
     name: 'Muku v1',
     desc: 'Cosmic philosopher and playful enigma from another dimension',
     tag: '??',
-    role: 'Cosmic Enigma',
+    role: 'Mysterious Person',
     badgeColor: '#d946ef',
     greeting: 'Greetings, traveler of spacetime! What wonders shall we weave across the cosmos today?',
     avatarSeed: 'muku',

@@ -713,7 +713,7 @@ export default function App() {
                   Welcome to MuxAI
                 </h2>
                 <p className="themed-welcome-sub text-xs sm:text-sm mb-6 max-w-md">
-                  Next-generation self-hosted conversational intelligence. Pick your companion persona below and start chatting.
+                  Pick your companion persona below to begin chatting!
                 </p>
 
                 {/* Persona Selector Deck */}
