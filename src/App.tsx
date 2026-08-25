@@ -667,7 +667,7 @@ export default function App() {
                     : 'bg-slate-400'
                 }`}
               />
-              <span className="hidden xs:inline">{isOnline ? 'Ollama Online' : 'Standby'}</span>
+              <span className="xs:inline">{isOnline ? 'ON' : 'OFF'}</span>
             </div>
 
             {/* Quick New Chat Button */}
