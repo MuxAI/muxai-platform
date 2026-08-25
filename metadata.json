@@ -1,0 +1,8 @@
+{
+  "name": "MuxAI - Self-Hosted LLM Platform",
+  "description": "Conversational AI platform featuring personas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
