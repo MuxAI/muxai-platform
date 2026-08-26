@@ -1,8 +1,9 @@
 import { Persona } from '../types';
+import { loadCustomPersonas } from './storage';
 
 export const REMOTE_IMAGE_PREFIX = 'https://muxai.vercel.app';
 
-export const PERSONAS: Persona[] = [
+export const BASE_PERSONAS: Persona[] = [
   {
     id: 'Sera16',
     name: 'Seraphina v1.6',
@@ -75,7 +76,31 @@ export const PERSONAS: Persona[] = [
   },
 ];
 
+export const PERSONAS = BASE_PERSONAS;
+
+export function getAllPersonas(): Persona[] {
+  const custom = loadCustomPersonas();
+  return [...BASE_PERSONAS, ...custom];
+}
+
+export function getPersonaById(id: string): Persona {
+  const all = getAllPersonas();
+  return all.find((p) => p.id === id) || BASE_PERSONAS[0];
+}
+
 export function getPersonaImageUrl(personaId: string, type: 'logo' | 'portrait' = 'logo'): string {
+  const custom = loadCustomPersonas().find((p) => p.id === personaId);
+  if (custom) {
+    if (type === 'portrait' && custom.customPortrait) {
+      return custom.customPortrait;
+    }
+    if (type === 'logo' && custom.customLogo) {
+      return custom.customLogo;
+    }
+    if (custom.customPortrait) return custom.customPortrait;
+    if (custom.customLogo) return custom.customLogo;
+  }
+
   if (type === 'portrait') {
     return `${REMOTE_IMAGE_PREFIX}/portrait_${personaId}.png`;
   }
@@ -85,3 +110,4 @@ export function getPersonaImageUrl(personaId: string, type: 'logo' | 'portrait' 
 export function getMainLogoUrl(): string {
   return `${REMOTE_IMAGE_PREFIX}/logo.png`;
 }
+

@@ -23,6 +23,7 @@ interface ChatInputProps {
   onSend: (text: string, attachments: Attachment[]) => void;
   onGenerateImage: (prompt: string) => void;
   disabled?: boolean;
+  isOnline?: boolean;
   options: ModelOptions;
   onOptionsChange: (opts: ModelOptions) => void;
 }
@@ -31,6 +32,7 @@ export function ChatInput({
   onSend,
   onGenerateImage,
   disabled = false,
+  isOnline = true,
   options,
   onOptionsChange,
 }: ChatInputProps) {
@@ -41,6 +43,8 @@ export function ChatInput({
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const effectiveDisabled = disabled || !isOnline;
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -378,20 +382,24 @@ export function ChatInput({
                 submit();
               }
             }}
-            placeholder="Type a message or drop files..."
+            placeholder={
+              !isOnline
+                ? 'Server is offline right now.'
+                : 'Type a message or drop files...'
+            }
             rows={1}
-            disabled={disabled}
-            className="flex-1 bg-transparent outline-none resize-none font-normal text-sm sm:text-base py-2 max-h-44 disabled:opacity-50 themed-text min-h-[26px]"
+            disabled={effectiveDisabled}
+            className="flex-1 bg-transparent outline-none resize-none font-normal text-sm sm:text-base py-2 max-h-44 disabled:opacity-50 disabled:cursor-not-allowed themed-text min-h-[26px]"
           />
 
           <button
             type="submit"
             disabled={
-              disabled ||
+              effectiveDisabled ||
               (!value.trim() && attachments.filter((a) => !a.error && !a.parsing).length === 0) ||
               parsing
             }
-            className="w-10 h-10 sm:w-11 sm:h-11 shrink-0 rounded-full flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95 themed-send-btn shadow-md"
+            className="w-10 h-10 sm:w-11 sm:h-11 shrink-0 rounded-full flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95 themed-send-btn shadow-md"
           >
             {parsing ? (
               <Loader2 size={18} className="animate-spin" />

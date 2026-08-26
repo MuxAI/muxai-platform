@@ -1309,8 +1309,19 @@ export const THEMES: Theme[] = [
   }),
 ];
 
+export function getAllThemes(): Theme[] {
+  try {
+    const raw = localStorage.getItem('muxai_custom_themes_v2');
+    const custom = raw ? JSON.parse(raw) : [];
+    return [...THEMES, ...custom];
+  } catch {
+    return THEMES;
+  }
+}
+
 export function getThemeById(id: string): Theme {
-  return THEMES.find((t) => t.id === id) || THEMES[0];
+  const all = getAllThemes();
+  return all.find((t) => t.id === id) || THEMES[0];
 }
 
 export function applyTheme(themeId: string): void {
@@ -1320,3 +1331,5 @@ export function applyTheme(themeId: string): void {
     root.style.setProperty(key, value);
   });
 }
+
+export { BASE };

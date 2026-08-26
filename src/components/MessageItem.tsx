@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Copy,
   Check,
@@ -14,6 +14,7 @@ import {
   Bot,
   User,
   Sparkles,
+  RotateCw,
 } from 'lucide-react';
 import { Message } from '../types';
 import { Logo, UserAvatar } from './Logo';
@@ -22,12 +23,19 @@ interface MessageItemProps {
   message: Message;
   personaId: string;
   isAutoChat?: boolean;
+  onRetry?: () => void;
 }
 
-export function MessageItem({ message, personaId, isAutoChat = false }: MessageItemProps) {
+export function MessageItem({
+  message,
+  personaId,
+  isAutoChat = false,
+  onRetry,
+}: MessageItemProps) {
   const [copied, setCopied] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [isHovered, setIsHovered] = useState(false);
 
   const isUser = message.role === 'user';
   const effectivePersona = message.personaId || personaId;
@@ -70,7 +78,9 @@ export function MessageItem({ message, personaId, isAutoChat = false }: MessageI
         )}
 
         <div
-          className={`group/msg relative max-w-[88%] sm:max-w-[82%] px-4 sm:px-5 py-3.5 rounded-2xl text-sm sm:text-base leading-relaxed transition-all shadow-sm ${
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          className={`group/msg relative max-w-[88%] sm:max-w-[82%] px-4 sm:px-5 py-3.5 rounded-2xl text-sm sm:text-base leading-relaxed transition-all duration-300 shadow-sm ${
             isUser && !isAutoChat
               ? 'themed-user-bubble rounded-tr-sm'
               : 'themed-ai-bubble rounded-tl-sm border'
@@ -184,6 +194,75 @@ export function MessageItem({ message, personaId, isAutoChat = false }: MessageI
               )}
             </div>
           )}
+
+          {/* User Message Smooth Hover Bottom Expansion for Quick Actions (Copy, Retry) */}
+          {isUser && !isAutoChat && (
+            <div
+              className={`overflow-hidden transition-all duration-300 ease-out ${
+                isHovered ? 'max-h-12 opacity-100 mt-2.5 pt-2 border-t border-white/15' : 'max-h-0 opacity-0 mt-0 pt-0 border-t-0'
+              }`}
+            >
+              <div className="flex items-center justify-end gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white/90 hover:text-white flex items-center gap-1.5 transition-all shadow-sm"
+                  title="Copy prompt text"
+                >
+                  {copied ? (
+                    <>
+                      <Check size={12} className="text-emerald-300" />
+                      <span className="text-[11px] font-semibold text-emerald-300">Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={12} />
+                      <span className="text-[11px] font-medium">Copy</span>
+                    </>
+                  )}
+                </button>
+
+                {onRetry && (
+                  <button
+                    type="button"
+                    onClick={onRetry}
+                    className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white/90 hover:text-white flex items-center gap-1.5 transition-all shadow-sm"
+                    title="Resend and regenerate response without repeating prompt bubble"
+                  >
+                    <RotateCw size={12} />
+                    <span className="text-[11px] font-medium">Retry</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* AI Message Footer Actions */}
+          {!isUser && !isAutoChat && (
+            <div className="flex items-center gap-2 mt-2 pt-1 border-t border-zinc-500/10 text-xs opacity-60 hover:opacity-100 transition-opacity">
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="flex items-center gap-1 hover:text-pink-500 transition-colors p-1 rounded"
+                title="Copy response"
+              >
+                {copied ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+                <span className="text-[10px]">{copied ? 'Copied' : 'Copy'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSpeak}
+                className={`flex items-center gap-1 transition-colors p-1 rounded ${
+                  speaking ? 'text-pink-500' : 'hover:text-pink-500'
+                }`}
+                title={speaking ? 'Stop speech' : 'Read aloud'}
+              >
+                {speaking ? <VolumeX size={13} /> : <Volume2 size={13} />}
+                <span className="text-[10px]">{speaking ? 'Stop' : 'Speak'}</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {isUser && !isAutoChat && <UserAvatar size={42} />}
@@ -205,3 +284,4 @@ export function MessageItem({ message, personaId, isAutoChat = false }: MessageI
     </>
   );
 }
+

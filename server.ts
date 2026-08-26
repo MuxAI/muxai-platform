@@ -15,7 +15,7 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
 const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'llama3.2-vision:11b';
 
 const DEFAULT_PROMPTS: Record<string, string> = {
-  Sera16: "",
+   Sera16: "",
   Sera14: "",
   Sera16_wife: "",
   Sera16_bd: "",
@@ -110,14 +110,13 @@ app.get('/api/health', (_req: Request, res: Response) => {
   return res.status(200).json({ status: 'ok' });
 });
 
-// 2. Ollama Online Detection & Server Ping
+// 2. Online Detection & Server Ping (Strictly Ollama Server)
 app.get('/api/ping', async (_req: Request, res: Response) => {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
 
     const baseUrl = OLLAMA_BASE_URL.replace(/\/$/, '');
-    // Try pinging Ollama tags endpoint or root endpoint
     const response = await fetch(`${baseUrl}/api/tags`, {
       method: 'GET',
       headers: {
@@ -126,15 +125,23 @@ app.get('/api/ping', async (_req: Request, res: Response) => {
       },
       signal: controller.signal,
     }).catch(async () => {
-      // Fallback: ping root /
-      return await fetch(baseUrl, {
+      return await fetch(`${baseUrl}/api/version`, {
         method: 'GET',
         headers: {
           'ngrok-skip-browser-warning': 'true',
           'User-Agent': 'MuxAI/2.4',
         },
         signal: controller.signal,
-      }).catch(() => null);
+      }).catch(async () => {
+        return await fetch(baseUrl, {
+          method: 'GET',
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+            'User-Agent': 'MuxAI/2.4',
+          },
+          signal: controller.signal,
+        }).catch(() => null);
+      });
     });
 
     clearTimeout(timeoutId);
@@ -144,6 +151,7 @@ app.get('/api/ping', async (_req: Request, res: Response) => {
         status: 'online',
         model: OLLAMA_MODEL,
         url: OLLAMA_BASE_URL,
+        mode: 'ollama',
       });
     }
 
@@ -151,15 +159,15 @@ app.get('/api/ping', async (_req: Request, res: Response) => {
       status: 'offline',
       message: `Ollama server unreachable at ${OLLAMA_BASE_URL}`,
     });
-  } catch (error) {
+  } catch {
     return res.status(200).json({
       status: 'offline',
-      message: `Ollama ping error at ${OLLAMA_BASE_URL}`,
+      message: `Ollama server ping error at ${OLLAMA_BASE_URL}`,
     });
   }
 });
 
-// 3. Ollama Chat Endpoint
+// 3. Chat Endpoint (Strictly Ollama Server)
 app.post('/api/chat', async (req: Request, res: Response) => {
   try {
     const {
@@ -208,7 +216,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
 
     const endpoint = `${OLLAMA_BASE_URL.replace(/\/$/, '')}/v1/chat/completions`;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
 
     const upstream = await fetch(endpoint, {
       method: 'POST',
@@ -224,10 +232,10 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     clearTimeout(timeoutId);
 
     if (!upstream.ok) {
-      const errText = await upstream.text().catch(() => '');
-      return res.status(502).json({
-        error: `Ollama model server returned error status ${upstream.status}`,
-        detail: errText || `Failed to generate response from Ollama at ${OLLAMA_BASE_URL}`,
+      const errorText = await upstream.text().catch(() => '');
+      return res.status(upstream.status).json({
+        error: `Ollama error (${upstream.status})`,
+        detail: errorText || `Ollama server at ${OLLAMA_BASE_URL} returned status ${upstream.status}`,
       });
     }
 
@@ -258,26 +266,27 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     return res.status(200).json({ reply });
   } catch (err: any) {
     return res.status(502).json({
-      error: 'Self-hosted Ollama server is offline or unreachable.',
-      detail: `Ensure the Ollama server is running at ${OLLAMA_BASE_URL}. (${err?.message || 'Connection failed'})`,
+      error: 'Chat completion failed: Ollama server unreachable.',
+      detail: `Ensure your Ollama server is running at ${OLLAMA_BASE_URL} with model ${OLLAMA_MODEL}. Error: ${err?.message || err}`,
     });
   }
 });
 
-// 4. Generate Title (via Ollama or clean excerpt fallback)
+// 4. Generate Title (Ollama)
 app.post('/api/generate-title', async (req: Request, res: Response) => {
   try {
-    const { messages = [], personaId = 'Sera16' } = req.body || {};
+    const { messages = [] } = req.body || {};
     const textSnippet = messages.slice(0, 4).map((m: any) => `${m.role}: ${m.content}`).join('\n');
 
     if (!textSnippet) {
       return res.status(200).json({ title: 'New chat' });
     }
 
+    // Call Ollama
     try {
       const endpoint = `${OLLAMA_BASE_URL.replace(/\/$/, '')}/v1/chat/completions`;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
 
       const upstream = await fetch(endpoint, {
         method: 'POST',
@@ -312,9 +321,7 @@ app.post('/api/generate-title', async (req: Request, res: Response) => {
           return res.status(200).json({ title: generated });
         }
       }
-    } catch {
-      // Fall through to excerpt extraction
-    }
+    } catch {}
 
     const firstUserMsg = messages.find((m: any) => m.role === 'user')?.content || '';
     const cleanTitle = firstUserMsg.slice(0, 28).trim() || 'New chat';
@@ -324,7 +331,7 @@ app.post('/api/generate-title', async (req: Request, res: Response) => {
   }
 });
 
-// 5. Multimodal Vision Analysis (Ollama Vision)
+// 5. Vision Analysis (Ollama Vision Model)
 app.post('/api/vision', async (req: Request, res: Response) => {
   try {
     const { prompt, images, model } = req.body || {};
@@ -335,9 +342,10 @@ app.post('/api/vision', async (req: Request, res: Response) => {
     const visionPrompt = prompt || 'Describe this image in detail. What objects, text, people, and context do you observe?';
     const targetModel = model || OLLAMA_VISION_MODEL;
 
+    // Send to Ollama vision
     const endpoint = `${OLLAMA_BASE_URL.replace(/\/$/, '')}/api/chat`;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 35000);
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     const upstream = await fetch(endpoint, {
       method: 'POST',
@@ -362,21 +370,21 @@ app.post('/api/vision', async (req: Request, res: Response) => {
 
     clearTimeout(timeoutId);
 
-    if (!upstream.ok) {
+    if (upstream.ok) {
+      const data = await upstream.json();
+      const reply = data.message?.content?.trim() || '';
+      return res.status(200).json({ reply, model: targetModel });
+    } else {
       const errText = await upstream.text().catch(() => '');
-      return res.status(502).json({
-        error: `Ollama vision request failed (${upstream.status})`,
-        detail: errText || `Ensure vision model '${targetModel}' is installed in Ollama.`,
+      return res.status(upstream.status).json({
+        error: `Ollama vision server returned status ${upstream.status}`,
+        detail: errText || `Ensure ${targetModel} is installed on your Ollama server.`,
       });
     }
-
-    const data = await upstream.json();
-    const reply = data.message?.content?.trim() || '';
-    return res.status(200).json({ reply, model: targetModel });
   } catch (err: any) {
     return res.status(502).json({
-      error: 'Vision analysis failed: Ollama vision server is offline or unreachable.',
-      detail: String(err?.message || err),
+      error: 'Vision analysis failed: Ollama vision server is unreachable.',
+      detail: `Ensure your Ollama server is running at ${OLLAMA_BASE_URL} with vision model ${OLLAMA_VISION_MODEL}. Error: ${err?.message || err}`,
     });
   }
 });
@@ -443,7 +451,22 @@ app.post('/api/web-search', async (req: Request, res: Response) => {
   }
 });
 
-// 8. Server & Vite Frontend Initialization
+// 8. Password Verification Endpoint (for protected personas)
+app.post('/api/verify-wife', (req: Request, res: Response) => {
+  const WIFE_PASSWORD = process.env.WIFE_PASSWORD || '';
+  if (!WIFE_PASSWORD) {
+    // If no password set in env, allow access
+    return res.status(200).json({ valid: true });
+  }
+
+  const { password } = req.body || {};
+  if (password === WIFE_PASSWORD) {
+    return res.status(200).json({ valid: true });
+  }
+  return res.status(403).json({ valid: false, error: 'Incorrect password' });
+});
+
+// 9. Server & Vite Frontend Initialization
 async function initServer() {
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');

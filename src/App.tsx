@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Menu,
@@ -13,18 +13,25 @@ import {
   Zap,
   Sliders,
   ChevronDown,
+  UserPlus,
+  Settings,
+  CheckCircle2,
 } from 'lucide-react';
 import { Logo } from './components/Logo';
 import { Sidebar } from './components/Sidebar';
-import { ThemeSidebar } from './components/ThemeSidebar';
+import { SettingsSidebar } from './components/SettingsSidebar';
 import { ChatInput } from './components/ChatInput';
 import { BlockScreen } from './components/BlockScreen';
 import { DeleteModal } from './components/DeleteModal';
 import { ToolProgressDisplay } from './components/ToolProgress';
 import { MessageItem } from './components/MessageItem';
 import { PersonaSelectorDeck } from './components/PersonaSelectorDeck';
-import { PERSONAS } from './lib/constants';
-import { THEMES, applyTheme } from './lib/themes';
+import { NavierStokesGlyphs } from './components/NavierStokesGlyphs';
+import { CustomPersonaModal } from './components/CustomPersonaModal';
+import { CustomThemeModal } from './components/CustomThemeModal';
+import { ImportConflictModal } from './components/ImportConflictModal';
+import { PERSONAS, getAllPersonas } from './lib/constants';
+import { THEMES, getAllThemes, applyTheme, Theme } from './lib/themes';
 import {
   fetchAIReply,
   generateTitle,
@@ -42,6 +49,19 @@ import {
   recordMessage,
   getTheme,
   setTheme,
+  loadCustomPersonas,
+  addOrUpdateCustomPersona,
+  removeCustomPersona,
+  loadCustomThemes,
+  addOrUpdateCustomTheme,
+  removeCustomTheme,
+  getGraphicsQuality,
+  setGraphicsQuality,
+  GraphicsQuality,
+  exportAllData,
+  parseAndDetectImportConflicts,
+  applyImportedData,
+  MuxAIExportPackage,
 } from './lib/storage';
 import {
   Conversation,
@@ -50,6 +70,8 @@ import {
   RateInfo,
   ToolProgress,
   Attachment,
+  Persona,
+  ImportConflict,
 } from './types';
 
 const GENERIC_ERROR =
@@ -106,7 +128,15 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [themeSidebarOpen, setThemeSidebarOpen] = useState(false);
+  const [settingsSidebarOpen, setSettingsSidebarOpen] = useState(false);
+  const [graphicsQuality, setGraphicsQualityState] = useState<GraphicsQuality>(() => getGraphicsQuality());
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Import conflicts state
+  const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
+  const [importConflicts, setImportConflicts] = useState<ImportConflict[]>([]);
+  const [pendingImportPackage, setPendingImportPackage] = useState<MuxAIExportPackage | null>(null);
+
   const [rateInfo, setRateInfo] = useState<RateInfo>({
     blocked: false,
     resetIn: 0,
@@ -127,6 +157,23 @@ export default function App() {
     temperature: 0.6,
   });
   const [toolProgress, setToolProgress] = useState<ToolProgress | null>(null);
+
+  // Custom Persona & Theme Modals state
+  const [customPersonas, setCustomPersonas] = useState<Persona[]>(() => loadCustomPersonas());
+  const [isPersonaModalOpen, setIsPersonaModalOpen] = useState(false);
+  const [personaToEdit, setPersonaToEdit] = useState<Persona | null>(null);
+
+  const [customThemes, setCustomThemes] = useState<Theme[]>(() => loadCustomThemes());
+  const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
+  const [themeToEdit, setThemeToEdit] = useState<Theme | null>(null);
+
+  const allPersonas = useMemo(() => {
+    return [...PERSONAS, ...customPersonas];
+  }, [customPersonas]);
+
+  const allThemes = useMemo(() => {
+    return [...THEMES, ...customThemes];
+  }, [customThemes]);
 
   const [autoConfig, setAutoConfig] = useState<{ p1: string; p2: string } | null>(null);
   const isAutoRunning = useRef(false);
@@ -270,6 +317,130 @@ export default function App() {
     } catch {}
   };
 
+  // Custom Persona Management
+  const handleSaveCustomPersona = (p: Persona) => {
+    addOrUpdateCustomPersona(p);
+    setCustomPersonas(loadCustomPersonas());
+    setSelectedPersona(p.id);
+    if (activeId) {
+      updateConversation(activeId, (c) => ({ ...c, personaId: p.id }));
+      setConversations(loadConversations());
+    }
+  };
+
+  const handleDeleteCustomPersona = (id: string) => {
+    removeCustomPersona(id);
+    setCustomPersonas(loadCustomPersonas());
+    if (selectedPersona === id) {
+      setSelectedPersona('Sera16');
+      if (activeId) {
+        updateConversation(activeId, (c) => ({ ...c, personaId: 'Sera16' }));
+        setConversations(loadConversations());
+      }
+    }
+  };
+
+  // Custom Theme Management
+  const handleSaveCustomTheme = (t: Theme) => {
+    addOrUpdateCustomTheme(t);
+    setCustomThemes(loadCustomThemes());
+    setThemeState(t.id);
+    setTheme(t.id);
+    applyTheme(t.id);
+  };
+
+  const handleDeleteCustomTheme = (id: string) => {
+    removeCustomTheme(id);
+    setCustomThemes(loadCustomThemes());
+    if (theme === id) {
+      setThemeState('classic-dark');
+      setTheme('classic-dark');
+      applyTheme('classic-dark');
+    }
+  };
+
+  // Toast notification helper with auto-dismiss
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage((curr) => (curr === msg ? null : curr));
+    }, 3500);
+  };
+
+  // Storage Reload Helper
+  const reloadAllStorageData = () => {
+    const convs = loadConversations();
+    setConversations(convs);
+    if (convs.length > 0 && (!activeId || !convs.some((c) => c.id === activeId))) {
+      setActiveId(convs[0].id);
+    }
+    setCustomPersonas(loadCustomPersonas());
+    setCustomThemes(loadCustomThemes());
+    const savedTheme = getTheme();
+    setThemeState(savedTheme);
+    applyTheme(savedTheme);
+    const q = getGraphicsQuality();
+    setGraphicsQualityState(q);
+  };
+
+  // Export Data Handler
+  const handleExportData = () => {
+    try {
+      const { jsonString, filename } = exportAllData();
+      const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast('All workspace data exported successfully!');
+    } catch (err: any) {
+      setError(`Failed to export data: ${err?.message || err}`);
+    }
+  };
+
+  // Import Data Handler
+  const handleImportDataFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const result = parseAndDetectImportConflicts(text);
+        if (!result.success || !result.dataPackage) {
+          setError(result.error || 'Failed to parse import backup file.');
+          return;
+        }
+
+        if (result.conflicts.length > 0) {
+          setPendingImportPackage(result.dataPackage);
+          setImportConflicts(result.conflicts);
+          setIsConflictModalOpen(true);
+        } else {
+          applyImportedData(result.dataPackage);
+          reloadAllStorageData();
+          showToast('Data imported and merged successfully!');
+        }
+      } catch (err: any) {
+        setError(`Failed to process backup file: ${err?.message || err}`);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // Resolved Conflicts Import Handler
+  const handleResolveAndImport = (
+    pkg: MuxAIExportPackage,
+    resolutions: Record<string, 'keep_existing' | 'use_incoming' | 'keep_both'>
+  ) => {
+    applyImportedData(pkg, resolutions);
+    reloadAllStorageData();
+    showToast('Import completed with your conflict selections!');
+  };
+
+
   // Dual-Agent Auto Chat loop (when `?auto=0` or `?auto=1`)
   const autoChatLoop = async (convId: string, initialMsgs: Message[], p1: string, p2: string) => {
     isAutoRunning.current = true;
@@ -366,6 +537,129 @@ export default function App() {
       maybeGenerateTitle(convId, finalMsgs, personaToUse);
     } catch (err: any) {
       setError(err?.message || 'Image generation failed.');
+    } finally {
+      setLoading(false);
+      setToolProgress(null);
+    }
+  };
+
+  // Retry a user message: keeps messages up to this user message, and regenerates the response without duplicating the user prompt bubble
+  const handleRetry = async (msgIndex: number, userMessage: Message) => {
+    if (loading || !isOnline) return;
+
+    let convId = activeId;
+    if (!convId) return;
+
+    const trimmedMsgs = messages.slice(0, msgIndex + 1);
+    setMessages(trimmedMsgs);
+    persistMessages(convId, trimmedMsgs);
+
+    const activeConv = conversations.find((c) => c.id === convId);
+    const personaToUse = activeConv?.personaId || selectedPersona;
+
+    setLoading(true);
+    setError('');
+    setToolProgress({ phase: 'thinking' });
+
+    const tools = modelOptions.toolCalling ? TOOL_DEFINITIONS : null;
+    const browserInfo = getBrowserInfo();
+    const MAX_TOOL_ROUNDS = 4;
+
+    let conversationHistory: Message[] = trimmedMsgs.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+    let gotFinalReply = false;
+
+    try {
+      for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+        const data = await fetchAIReply(conversationHistory, personaToUse, {
+          jsonMode: modelOptions.jsonMode,
+          temperature: modelOptions.temperature,
+          tools: round === 0 ? tools : null,
+        });
+
+        if (!data.toolCalls || !Array.isArray(data.toolCalls) || data.toolCalls.length === 0) {
+          const replyText = data.reply || '';
+          const aiMsg: Message = {
+            role: 'assistant',
+            personaId: personaToUse,
+            content: replyText,
+          };
+          const finalMsgs = [...trimmedMsgs, aiMsg];
+          setMessages(finalMsgs);
+          persistMessages(convId, finalMsgs);
+          recordMessage();
+          gotFinalReply = true;
+          break;
+        }
+
+        if (data.reply) {
+          conversationHistory.push({ role: 'assistant', content: data.reply });
+        }
+
+        const toolProgressList: Array<{
+          name: string;
+          status: 'pending' | 'executing' | 'done';
+        }> = data.toolCalls.map((tc: any) => ({
+          name: tc.function?.name || 'unknown',
+          status: 'pending',
+        }));
+        setToolProgress({ phase: 'calling_tools', tools: toolProgressList });
+
+        const toolResultParts = [];
+
+        for (let i = 0; i < data.toolCalls.length; i++) {
+          const tc = data.toolCalls[i];
+          const toolName = tc.function?.name || 'unknown';
+          let parsedArgs = {};
+          try {
+            parsedArgs = JSON.parse(tc.function?.arguments || '{}');
+          } catch {}
+
+          toolProgressList[i].status = 'executing';
+          setToolProgress({ phase: 'calling_tools', tools: [...toolProgressList] });
+
+          const result = await executeTool(toolName, parsedArgs, browserInfo);
+
+          toolProgressList[i].status = 'done';
+          setToolProgress({ phase: 'calling_tools', tools: [...toolProgressList] });
+
+          toolResultParts.push(
+            `[Tool: ${toolName}]\nArguments: ${JSON.stringify(parsedArgs)}\nResult: ${result}`
+          );
+        }
+
+        setToolProgress({ phase: 'processing_results' });
+
+        conversationHistory.push({
+          role: 'user',
+          content: `Here are the real-time tool results. Answer the user question naturally using this data:\n\n${toolResultParts.join(
+            '\n\n'
+          )}`,
+        });
+      }
+
+      if (!gotFinalReply) {
+        setToolProgress({ phase: 'thinking_after_tools' });
+        const finalData = await fetchAIReply(conversationHistory, personaToUse, {
+          jsonMode: modelOptions.jsonMode,
+          temperature: modelOptions.temperature,
+          tools: null,
+        });
+        const replyText = finalData.reply || 'Data retrieved successfully.';
+        const aiMsg: Message = {
+          role: 'assistant',
+          personaId: personaToUse,
+          content: replyText,
+        };
+        const finalMsgs = [...trimmedMsgs, aiMsg];
+        setMessages(finalMsgs);
+        persistMessages(convId, finalMsgs);
+        recordMessage();
+      }
+    } catch (err: any) {
+      setError(err?.message || GENERIC_ERROR);
     } finally {
       setLoading(false);
       setToolProgress(null);
@@ -577,15 +871,20 @@ export default function App() {
   const activeConv = conversations.find((c) => c.id === activeId);
   const currentPersonaId = activeConv?.personaId || selectedPersona;
   const currentPersonaInfo =
-    PERSONAS.find((p) => p.id === currentPersonaId) || PERSONAS[0];
+    allPersonas.find((p) => p.id === currentPersonaId) || allPersonas[0];
 
   return (
     <div className="themed-bg themed-text h-screen w-screen overflow-hidden relative select-text">
-      {/* Dynamic Aurora Ambient Background */}
+      {/* Navier-Stokes Fluid Glyphs Simulation snaking in background */}
+      {graphicsQuality === 'fancy' && (
+        <NavierStokesGlyphs className="z-0 pointer-events-none opacity-40" />
+      )}
+
+      {/* Dynamic Ambient Moving Gradient Aurora Glows */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="themed-aurora-1 absolute -top-1/4 -left-1/4 w-[500px] h-[500px] sm:w-[650px] sm:h-[650px] rounded-full blur-[140px] animate-aurora-1" />
-        <div className="themed-aurora-2 absolute top-1/3 -right-1/4 w-[450px] h-[450px] sm:w-[550px] sm:h-[550px] rounded-full blur-[140px] animate-aurora-2" />
-        <div className="themed-aurora-3 absolute -bottom-1/4 left-1/3 w-[450px] h-[450px] sm:w-[580px] sm:h-[580px] rounded-full blur-[140px] animate-aurora-3" />
+        <div className="themed-aurora-1 absolute -top-1/4 -left-1/4 w-[520px] h-[520px] sm:w-[680px] sm:h-[680px] rounded-full blur-[140px] animate-aurora-1" />
+        <div className="themed-aurora-2 absolute top-1/3 -right-1/4 w-[480px] h-[480px] sm:w-[580px] sm:h-[580px] rounded-full blur-[140px] animate-aurora-2" />
+        <div className="themed-aurora-3 absolute -bottom-1/4 left-1/3 w-[480px] h-[480px] sm:w-[600px] sm:h-[600px] rounded-full blur-[140px] animate-aurora-3" />
       </div>
 
       <div className="themed-grid-bg fixed inset-0 z-0 pointer-events-none opacity-40" />
@@ -603,15 +902,33 @@ export default function App() {
         isOnline={isOnline}
       />
 
-      {/* Right Theme Selector Sidebar */}
-      <ThemeSidebar
+      {/* Right Settings & Theme Submenu Sidebar */}
+      <SettingsSidebar
+        open={settingsSidebarOpen}
+        onClose={() => setSettingsSidebarOpen(false)}
+        graphicsQuality={graphicsQuality}
+        onSelectGraphicsQuality={(q) => {
+          setGraphicsQualityState(q);
+          setGraphicsQuality(q);
+          showToast(`Visual engine set to ${q === 'fancy' ? 'Fancy (Fluid dynamic on)' : 'Smooth (Efficiency mode)'}`);
+        }}
+        onExportData={handleExportData}
+        onImportDataFile={handleImportDataFile}
         activeTheme={theme}
-        onSelect={(newTheme) => {
+        onSelectTheme={(newTheme) => {
           setThemeState(newTheme);
           setTheme(newTheme);
         }}
-        open={themeSidebarOpen}
-        onClose={() => setThemeSidebarOpen(false)}
+        themes={allThemes}
+        onOpenCreateTheme={() => {
+          setThemeToEdit(null);
+          setIsThemeModalOpen(true);
+        }}
+        onEditTheme={(t) => {
+          setThemeToEdit(t);
+          setIsThemeModalOpen(true);
+        }}
+        onDeleteTheme={handleDeleteCustomTheme}
       />
 
       {/* Main View Container */}
@@ -621,7 +938,7 @@ export default function App() {
           <div className="flex items-center gap-2.5 sm:gap-3">
             <button
               onClick={() => setSidebarOpen((v) => !v)}
-              className="themed-burger p-2 rounded-xl border border-transparent hover:border-zinc-500/20 transition-all active:scale-95"
+              className="themed-burger p-2 rounded-xl border border-transparent hover:border-zinc-500/20 transition-all hover:scale-105 active:scale-95"
               title="Conversations history"
             >
               <Menu size={20} />
@@ -670,23 +987,13 @@ export default function App() {
               <span className="xs:inline">{isOnline ? 'ON' : 'OFF'}</span>
             </div>
 
-            {/* Quick New Chat Button */}
+            {/* Settings Toggle Button */}
             <button
-              onClick={handleNew}
-              className="themed-btn p-2 rounded-xl transition-all hover:scale-105 active:scale-95 hidden sm:flex items-center gap-1 text-xs font-semibold"
-              title="Start fresh conversation"
-            >
-              <Plus size={16} />
-              <span>New</span>
-            </button>
-
-            {/* Theme Toggle Button */}
-            <button
-              onClick={() => setThemeSidebarOpen((v) => !v)}
+              onClick={() => setSettingsSidebarOpen((v) => !v)}
               className="themed-btn p-2 sm:p-2.5 rounded-xl border border-transparent hover:border-zinc-500/20 transition-all hover:scale-105 active:scale-95 themed-tool-accent"
-              title="Change Color Theme"
+              title="Settings & Appearance"
             >
-              <Palette size={18} />
+              <Settings size={18} />
             </button>
           </div>
         </header>
@@ -713,13 +1020,14 @@ export default function App() {
                   Welcome to MuxAI
                 </h2>
                 <p className="themed-welcome-sub text-xs sm:text-sm mb-6 max-w-md">
-                  Pick your companion persona below to begin chatting!
+                  Pick your companion persona below or create a custom one to begin chatting!
                 </p>
 
                 {/* Persona Selector Deck */}
                 <div className="w-full mb-6">
                   <PersonaSelectorDeck
                     selectedPersona={selectedPersona}
+                    personas={allPersonas}
                     onSelect={(id) => {
                       setSelectedPersona(id);
                       if (activeId) {
@@ -727,6 +1035,15 @@ export default function App() {
                         setConversations(loadConversations());
                       }
                     }}
+                    onOpenCreatePersona={() => {
+                      setPersonaToEdit(null);
+                      setIsPersonaModalOpen(true);
+                    }}
+                    onEditPersona={(p) => {
+                      setPersonaToEdit(p);
+                      setIsPersonaModalOpen(true);
+                    }}
+                    onDeletePersona={handleDeleteCustomPersona}
                   />
                 </div>
 
@@ -741,7 +1058,7 @@ export default function App() {
                         <button
                           key={idx}
                           onClick={() => handleSend(prompt)}
-                          className="text-left p-3 rounded-2xl border border-inherit themed-ai-bubble text-xs sm:text-sm font-medium transition-all hover:scale-[1.01] hover:border-indigo-400 active:scale-[0.99] shadow-sm flex items-start gap-2.5 group"
+                          className="text-left p-3 rounded-2xl border border-inherit themed-ai-bubble text-xs sm:text-sm font-medium transition-all hover:scale-[1.01] hover:border-pink-400 active:scale-[0.99] shadow-sm flex items-start gap-2.5 group"
                         >
                           <Sparkles
                             size={15}
@@ -764,6 +1081,7 @@ export default function App() {
                   message={msg}
                   personaId={currentPersonaId}
                   isAutoChat={Boolean(autoConfig)}
+                  onRetry={msg.role === 'user' ? () => handleRetry(i, msg) : undefined}
                 />
               ))}
             </AnimatePresence>
@@ -810,10 +1128,29 @@ export default function App() {
           onSend={handleSend}
           onGenerateImage={handleGenerateImage}
           disabled={loading || rateInfo.blocked}
+          isOnline={isOnline}
           options={modelOptions}
           onOptionsChange={setModelOptions}
         />
       </div>
+
+      {/* Custom Persona Modal */}
+      <CustomPersonaModal
+        isOpen={isPersonaModalOpen}
+        onClose={() => setIsPersonaModalOpen(false)}
+        onSave={handleSaveCustomPersona}
+        onDelete={handleDeleteCustomPersona}
+        personaToEdit={personaToEdit}
+      />
+
+      {/* Custom Theme Modal */}
+      <CustomThemeModal
+        isOpen={isThemeModalOpen}
+        onClose={() => setIsThemeModalOpen(false)}
+        onSave={handleSaveCustomTheme}
+        onDelete={handleDeleteCustomTheme}
+        themeToEdit={themeToEdit}
+      />
 
       {/* Rate limit screen */}
       {rateInfo.blocked && <BlockScreen resetIn={rateInfo.resetIn} />}
@@ -826,6 +1163,38 @@ export default function App() {
           onCancel={() => setDeleteTarget(null)}
         />
       )}
+
+      {/* Import Conflict Resolution Modal */}
+      {pendingImportPackage && (
+        <ImportConflictModal
+          isOpen={isConflictModalOpen}
+          onClose={() => {
+            setIsConflictModalOpen(false);
+            setPendingImportPackage(null);
+            setImportConflicts([]);
+          }}
+          conflicts={importConflicts}
+          dataPackage={pendingImportPackage}
+          onResolveAndImport={handleResolveAndImport}
+        />
+      )}
+
+      {/* Floating Toast Notification */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className="fixed top-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-2xl bg-zinc-950/90 text-zinc-100 border border-pink-500/40 shadow-2xl backdrop-blur-md flex items-center gap-2 text-xs sm:text-sm font-semibold pointer-events-none"
+          >
+            <CheckCircle2 size={16} className="text-pink-400 shrink-0" />
+            <span>{toastMessage}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
+
+
