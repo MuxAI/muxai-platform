@@ -7,9 +7,10 @@ export async function fetchAIReply(
     jsonMode?: boolean;
     tools?: any;
     temperature?: number;
+    systemPrompt?: string;
   } = {}
 ) {
-  const { jsonMode = false, tools = null, temperature = 0.6 } = options;
+  const { jsonMode = false, tools = null, temperature = 0.6, systemPrompt } = options;
 
   const res = await fetch('/api/chat', {
     method: 'POST',
@@ -17,6 +18,7 @@ export async function fetchAIReply(
     body: JSON.stringify({
       messages,
       personaId,
+      systemPrompt,
       jsonMode,
       tools,
       temperature,

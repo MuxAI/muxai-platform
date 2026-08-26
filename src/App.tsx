@@ -462,9 +462,11 @@ export default function App() {
       }));
 
       try {
+        const speakerPersonaObj = allPersonas.find((p) => p.id === currentSpeaker);
         const data = await fetchAIReply(apiHistory, currentSpeaker, {
           jsonMode: false,
-          temperature: 0.7,
+          temperature: speakerPersonaObj?.temperature ?? 0.7,
+          systemPrompt: speakerPersonaObj?.systemPrompt,
         });
 
         const replyText = data.reply || '';
@@ -556,6 +558,7 @@ export default function App() {
 
     const activeConv = conversations.find((c) => c.id === convId);
     const personaToUse = activeConv?.personaId || selectedPersona;
+    const activePersonaObj = allPersonas.find((p) => p.id === personaToUse);
 
     setLoading(true);
     setError('');
@@ -577,6 +580,7 @@ export default function App() {
           jsonMode: modelOptions.jsonMode,
           temperature: modelOptions.temperature,
           tools: round === 0 ? tools : null,
+          systemPrompt: activePersonaObj?.systemPrompt,
         });
 
         if (!data.toolCalls || !Array.isArray(data.toolCalls) || data.toolCalls.length === 0) {
@@ -646,6 +650,7 @@ export default function App() {
           jsonMode: modelOptions.jsonMode,
           temperature: modelOptions.temperature,
           tools: null,
+          systemPrompt: activePersonaObj?.systemPrompt,
         });
         const replyText = finalData.reply || 'Data retrieved successfully.';
         const aiMsg: Message = {
@@ -685,6 +690,7 @@ export default function App() {
 
     const activeConv = currentConvs.find((c) => c.id === convId);
     const personaToUse = activeConv?.personaId || selectedPersona;
+    const activePersonaObj = allPersonas.find((p) => p.id === personaToUse);
 
     if (activeConv && activeConv.title === 'New chat' && messages.length === 0) {
       const firstWords = text ? text.slice(0, 24) : `Chat #${currentConvs.length}`;
@@ -777,6 +783,7 @@ export default function App() {
           jsonMode: modelOptions.jsonMode,
           temperature: modelOptions.temperature,
           tools: round === 0 ? tools : null,
+          systemPrompt: activePersonaObj?.systemPrompt,
         });
 
         if (!data.toolCalls || !Array.isArray(data.toolCalls) || data.toolCalls.length === 0) {
@@ -847,6 +854,7 @@ export default function App() {
           jsonMode: modelOptions.jsonMode,
           temperature: modelOptions.temperature,
           tools: null,
+          systemPrompt: activePersonaObj?.systemPrompt,
         });
         const replyText = finalData.reply || 'Data retrieved successfully.';
         const aiMsg: Message = {

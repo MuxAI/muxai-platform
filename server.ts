@@ -15,7 +15,7 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
 const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'llama3.2-vision:11b';
 
 const DEFAULT_PROMPTS: Record<string, string> = {
-   Sera16: "",
+  Sera16: "",
   Sera14: "",
   Sera16_wife: "",
   Sera16_bd: "",
@@ -173,13 +173,21 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     const {
       messages = [],
       personaId = 'Sera16',
+      systemPrompt = null,
+      customPrompt = null,
       jsonMode = false,
       tools = null,
       temperature = 0.6,
     } = req.body || {};
 
     const history = Array.isArray(messages) ? messages : [];
-    const basePrompt = getPrompt(personaId);
+    const explicitPrompt =
+      typeof systemPrompt === 'string' && systemPrompt.trim()
+        ? systemPrompt.trim()
+        : typeof customPrompt === 'string' && customPrompt.trim()
+        ? customPrompt.trim()
+        : null;
+    const basePrompt = explicitPrompt || getPrompt(personaId);
 
     const cap = tools && Array.isArray(tools) && tools.length > 0 ? 25 : 16;
     const recentHistory = history.slice(-cap);
