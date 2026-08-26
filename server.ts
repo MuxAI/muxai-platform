@@ -39,7 +39,12 @@ const TOOL_ALIASES: Record<string, string> = {
 
 function getPrompt(personaId: string): string {
   const key = `PROMPT_${personaId}`;
-  return process.env[key] || DEFAULT_PROMPTS[personaId] || DEFAULT_PROMPTS.Sera16;
+  if (process.env[key]) return process.env[key]!;
+  if (DEFAULT_PROMPTS[personaId]) return DEFAULT_PROMPTS[personaId];
+  if (personaId && (personaId.startsWith('custom_') || personaId.includes('custom'))) {
+    return 'You are a personalized AI companion. Maintain your distinct persona, tone, and character as guided by the user.';
+  }
+  return DEFAULT_PROMPTS.Sera16;
 }
 
 function parseTextToolCalls(content: string) {

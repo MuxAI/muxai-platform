@@ -30,7 +30,7 @@ import { NavierStokesGlyphs } from './components/NavierStokesGlyphs';
 import { CustomPersonaModal } from './components/CustomPersonaModal';
 import { CustomThemeModal } from './components/CustomThemeModal';
 import { ImportConflictModal } from './components/ImportConflictModal';
-import { PERSONAS, getAllPersonas } from './lib/constants';
+import { PERSONAS, getAllPersonas, getPersonaById } from './lib/constants';
 import { THEMES, getAllThemes, applyTheme, Theme } from './lib/themes';
 import {
   fetchAIReply,
@@ -462,7 +462,7 @@ export default function App() {
       }));
 
       try {
-        const speakerPersonaObj = allPersonas.find((p) => p.id === currentSpeaker);
+        const speakerPersonaObj = getPersonaById(currentSpeaker);
         const data = await fetchAIReply(apiHistory, currentSpeaker, {
           jsonMode: false,
           temperature: speakerPersonaObj?.temperature ?? 0.7,
@@ -558,7 +558,7 @@ export default function App() {
 
     const activeConv = conversations.find((c) => c.id === convId);
     const personaToUse = activeConv?.personaId || selectedPersona;
-    const activePersonaObj = allPersonas.find((p) => p.id === personaToUse);
+    const activePersonaObj = getPersonaById(personaToUse);
 
     setLoading(true);
     setError('');
@@ -690,7 +690,7 @@ export default function App() {
 
     const activeConv = currentConvs.find((c) => c.id === convId);
     const personaToUse = activeConv?.personaId || selectedPersona;
-    const activePersonaObj = allPersonas.find((p) => p.id === personaToUse);
+    const activePersonaObj = getPersonaById(personaToUse);
 
     if (activeConv && activeConv.title === 'New chat' && messages.length === 0) {
       const firstWords = text ? text.slice(0, 24) : `Chat #${currentConvs.length}`;
@@ -1055,29 +1055,31 @@ export default function App() {
                   />
                 </div>
 
-                {/* Quick Prompt Starters */}
-                <div className="w-full text-left mt-2">
-                  <div className="text-xs font-bold uppercase tracking-wider opacity-60 mb-2.5 px-1">
-                    Try Asking {currentPersonaInfo.name}:
+                {/* Quick Prompt Starters (Disabled for custom personas without preset starters) */}
+                {QUICK_STARTERS[selectedPersona] && QUICK_STARTERS[selectedPersona].length > 0 && (
+                  <div className="w-full text-left mt-2">
+                    <div className="text-xs font-bold uppercase tracking-wider opacity-60 mb-2.5 px-1">
+                      Try Asking {currentPersonaInfo.name}:
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {QUICK_STARTERS[selectedPersona].map(
+                        (prompt, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => handleSend(prompt)}
+                            className="text-left p-3 rounded-2xl border border-inherit themed-ai-bubble text-xs sm:text-sm font-medium transition-all hover:scale-[1.01] hover:border-pink-400 active:scale-[0.99] shadow-sm flex items-start gap-2.5 group"
+                          >
+                            <Sparkles
+                              size={15}
+                              className="themed-tool-accent shrink-0 mt-0.5 group-hover:rotate-12 transition-transform"
+                            />
+                            <span className="leading-snug">{prompt}</span>
+                          </button>
+                        )
+                      )}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {(QUICK_STARTERS[selectedPersona] || QUICK_STARTERS.Sera16).map(
-                      (prompt, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => handleSend(prompt)}
-                          className="text-left p-3 rounded-2xl border border-inherit themed-ai-bubble text-xs sm:text-sm font-medium transition-all hover:scale-[1.01] hover:border-pink-400 active:scale-[0.99] shadow-sm flex items-start gap-2.5 group"
-                        >
-                          <Sparkles
-                            size={15}
-                            className="themed-tool-accent shrink-0 mt-0.5 group-hover:rotate-12 transition-transform"
-                          />
-                          <span className="leading-snug">{prompt}</span>
-                        </button>
-                      )
-                    )}
-                  </div>
-                </div>
+                )}
               </motion.div>
             )}
 
