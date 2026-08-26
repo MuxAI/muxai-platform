@@ -175,7 +175,7 @@ export function SettingsSidebar({
                       )}
                     </div>
                     <p className="text-[10px] opacity-70 leading-tight">
-                      Navier-Stokes fluid dynamic particles (Default)
+                      Dynamic effects (Default)
                     </p>
                   </button>
 
@@ -201,7 +201,7 @@ export function SettingsSidebar({
                       )}
                     </div>
                     <p className="text-[10px] opacity-70 leading-tight">
-                      Disables fluid background for ultra efficiency
+                      More performance
                     </p>
                   </button>
                 </div>
@@ -362,7 +362,7 @@ export function SettingsSidebar({
 
               {/* App Version & Architecture */}
               <div className="text-center pt-2 pb-2 text-[10px] opacity-40 font-mono">
-                MuxAI v2.4 • Client-Engine Architecture
+                MuxAI v2.4
               </div>
             </div>
           </div>
