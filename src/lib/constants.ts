@@ -1,7 +1,7 @@
 import { Persona } from '../types';
 import { loadCustomPersonas } from './storage';
 
-export const REMOTE_IMAGE_PREFIX = 'https://muxai.vercel.app';
+export const REMOTE_IMAGE_PREFIX = '';
 
 export const BASE_PERSONAS: Persona[] = [
   {
