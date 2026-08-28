@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Bot, Sparkles, User } from 'lucide-react';
 import { getPersonaImageUrl, getMainLogoUrl } from '../lib/constants';
+import { loadCustomPersonas } from '../lib/storage';
 
 interface LogoProps {
   size?: number;
@@ -23,11 +24,10 @@ export function Logo({
 
   const imgSrc = isMain
     ? getMainLogoUrl()
-    : personaId
-    ? getPersonaImageUrl(personaId, 'logo')
-    : getPersonaImageUrl('Sera16', 'logo');
+    : getPersonaImageUrl(personaId, 'logo');
 
   if (imgError) {
+    const custom = personaId ? loadCustomPersonas().find((p) => p.id === personaId) : null;
     const isMale = personaId?.includes('Distil');
     const isWife = personaId?.includes('wife');
     const isBd = personaId?.includes('bd');
@@ -43,15 +43,20 @@ export function Logo({
 
     return (
       <div
-        className={`flex items-center justify-center rounded-xl bg-gradient-to-br ${bgGradient} text-white font-bold shadow-sm ${className}`}
+        className={`flex items-center justify-center rounded-xl ${
+          custom?.badgeColor ? '' : `bg-gradient-to-br ${bgGradient}`
+        } text-white font-bold shadow-sm ${className}`}
         style={{
           width: `${size}px`,
           height: `${size}px`,
           fontSize: `${Math.max(12, size * 0.38)}px`,
+          backgroundColor: custom?.badgeColor || undefined,
         }}
       >
         {isMain ? (
           <Sparkles size={size * 0.55} className="animate-pulse" />
+        ) : custom ? (
+          custom.name.slice(0, 2).toUpperCase()
         ) : personaId ? (
           personaId.slice(0, 2).toUpperCase()
         ) : (

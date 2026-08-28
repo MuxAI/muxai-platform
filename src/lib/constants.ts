@@ -90,12 +90,18 @@ export function getAllPersonas(): Persona[] {
   return [...BASE_PERSONAS, ...custom];
 }
 
-export function getPersonaById(id: string): Persona {
+export function getPersonaById(id?: string | null): Persona | null {
+  if (!id) return null;
   const all = getAllPersonas();
-  return all.find((p) => p.id === id) || BASE_PERSONAS[0];
+  return all.find((p) => p.id === id) || null;
 }
 
-export function getPersonaImageUrl(personaId: string, type: 'logo' | 'portrait' = 'logo'): string {
+export function getPersonaImageUrl(personaId?: string | null, type: 'logo' | 'portrait' = 'logo'): string {
+  if (!personaId) {
+    return type === 'portrait'
+      ? `${REMOTE_IMAGE_PREFIX}/portrait_Sera16.png`
+      : `${REMOTE_IMAGE_PREFIX}/logo_Sera16.png`;
+  }
   const custom = loadCustomPersonas().find((p) => p.id === personaId);
   if (custom) {
     if (type === 'portrait' && custom.customPortrait) {

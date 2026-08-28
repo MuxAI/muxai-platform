@@ -2,7 +2,7 @@ import { Message } from '../types';
 
 export async function fetchAIReply(
   messages: Message[],
-  personaId = 'Sera16',
+  personaId: string | null = null,
   options: {
     jsonMode?: boolean;
     tools?: any;
@@ -17,7 +17,7 @@ export async function fetchAIReply(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       messages,
-      personaId,
+      personaId: personaId || undefined,
       systemPrompt,
       jsonMode,
       tools,
@@ -33,12 +33,12 @@ export async function fetchAIReply(
   return await res.json();
 }
 
-export async function generateTitle(messages: Message[], personaId = 'Sera16'): Promise<string | null> {
+export async function generateTitle(messages: Message[], personaId: string | null = null): Promise<string | null> {
   try {
     const res = await fetch('/api/generate-title', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages, personaId }),
+      body: JSON.stringify({ messages, personaId: personaId || undefined }),
     });
     if (!res.ok) return null;
     const data = await res.json().catch(() => ({}));

@@ -175,6 +175,29 @@ export default function App() {
     return [...THEMES, ...customThemes];
   }, [customThemes]);
 
+  const getPersonaObject = (pId: string | null | undefined): Persona | null => {
+    if (!pId) return null;
+    return allPersonas.find((p) => p.id === pId) || getPersonaById(pId);
+  };
+
+  const getSystemPromptForPersona = (pId: string | null | undefined): string | undefined => {
+    if (!pId) return undefined;
+    const personaObj = getPersonaObject(pId);
+    if (!personaObj) return undefined;
+    if (personaObj.systemPrompt && personaObj.systemPrompt.trim()) {
+      return personaObj.systemPrompt.trim();
+    }
+    if (personaObj.isCustom || pId.startsWith('custom_') || pId.includes('custom')) {
+      const parts = [
+        `You are ${personaObj.name}.`,
+        personaObj.role ? `Role: ${personaObj.role}.` : '',
+        personaObj.desc ? `Persona description: ${personaObj.desc}.` : '',
+      ].filter(Boolean);
+      return parts.join(' ');
+    }
+    return undefined;
+  };
+
   const [autoConfig, setAutoConfig] = useState<{ p1: string; p2: string } | null>(null);
   const isAutoRunning = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -462,11 +485,12 @@ export default function App() {
       }));
 
       try {
-        const speakerPersonaObj = getPersonaById(currentSpeaker);
+        const speakerPersonaObj = getPersonaObject(currentSpeaker);
+        const speakerPrompt = getSystemPromptForPersona(currentSpeaker);
         const data = await fetchAIReply(apiHistory, currentSpeaker, {
           jsonMode: false,
           temperature: speakerPersonaObj?.temperature ?? 0.7,
-          systemPrompt: speakerPersonaObj?.systemPrompt,
+          systemPrompt: speakerPrompt,
         });
 
         const replyText = data.reply || '';
@@ -558,7 +582,8 @@ export default function App() {
 
     const activeConv = conversations.find((c) => c.id === convId);
     const personaToUse = activeConv?.personaId || selectedPersona;
-    const activePersonaObj = getPersonaById(personaToUse);
+    const activePersonaObj = getPersonaObject(personaToUse);
+    const personaPrompt = getSystemPromptForPersona(personaToUse);
 
     setLoading(true);
     setError('');
@@ -578,9 +603,9 @@ export default function App() {
       for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
         const data = await fetchAIReply(conversationHistory, personaToUse, {
           jsonMode: modelOptions.jsonMode,
-          temperature: modelOptions.temperature,
+          temperature: activePersonaObj?.temperature ?? modelOptions.temperature,
           tools: round === 0 ? tools : null,
-          systemPrompt: activePersonaObj?.systemPrompt,
+          systemPrompt: personaPrompt,
         });
 
         if (!data.toolCalls || !Array.isArray(data.toolCalls) || data.toolCalls.length === 0) {
@@ -648,9 +673,9 @@ export default function App() {
         setToolProgress({ phase: 'thinking_after_tools' });
         const finalData = await fetchAIReply(conversationHistory, personaToUse, {
           jsonMode: modelOptions.jsonMode,
-          temperature: modelOptions.temperature,
+          temperature: activePersonaObj?.temperature ?? modelOptions.temperature,
           tools: null,
-          systemPrompt: activePersonaObj?.systemPrompt,
+          systemPrompt: personaPrompt,
         });
         const replyText = finalData.reply || 'Data retrieved successfully.';
         const aiMsg: Message = {
@@ -690,7 +715,8 @@ export default function App() {
 
     const activeConv = currentConvs.find((c) => c.id === convId);
     const personaToUse = activeConv?.personaId || selectedPersona;
-    const activePersonaObj = getPersonaById(personaToUse);
+    const activePersonaObj = getPersonaObject(personaToUse);
+    const personaPrompt = getSystemPromptForPersona(personaToUse);
 
     if (activeConv && activeConv.title === 'New chat' && messages.length === 0) {
       const firstWords = text ? text.slice(0, 24) : `Chat #${currentConvs.length}`;
@@ -781,9 +807,9 @@ export default function App() {
       for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
         const data = await fetchAIReply(conversationHistory, personaToUse, {
           jsonMode: modelOptions.jsonMode,
-          temperature: modelOptions.temperature,
+          temperature: activePersonaObj?.temperature ?? modelOptions.temperature,
           tools: round === 0 ? tools : null,
-          systemPrompt: activePersonaObj?.systemPrompt,
+          systemPrompt: personaPrompt,
         });
 
         if (!data.toolCalls || !Array.isArray(data.toolCalls) || data.toolCalls.length === 0) {
@@ -852,9 +878,9 @@ export default function App() {
         setToolProgress({ phase: 'thinking_after_tools' });
         const finalData = await fetchAIReply(conversationHistory, personaToUse, {
           jsonMode: modelOptions.jsonMode,
-          temperature: modelOptions.temperature,
+          temperature: activePersonaObj?.temperature ?? modelOptions.temperature,
           tools: null,
-          systemPrompt: activePersonaObj?.systemPrompt,
+          systemPrompt: personaPrompt,
         });
         const replyText = finalData.reply || 'Data retrieved successfully.';
         const aiMsg: Message = {
