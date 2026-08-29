@@ -1613,8 +1613,8 @@ export default function App() {
                   </div>
                 )}
 
-                {/* ADDITIONAL BUTTONS BELOW "TRY ASKING" FOR UNIQUE MODES */}
-                <div className="w-full text-left mt-6 pt-4 border-t border-inherit opacity-95">
+                {/* ADDITIONAL BUTTONS FOR UNIQUE MODES */}
+                <!-- <div className="w-full text-left mt-6 pt-4 border-t border-inherit opacity-95">
                   <div className="text-xs font-bold uppercase tracking-wider opacity-60 mb-3 px-1 flex items-center gap-1.5">
                     <Zap size={13} className="text-amber-500" />
                     Special Conversation Modes:
@@ -1665,7 +1665,7 @@ export default function App() {
                       </p>
                     </button>
                   </div>
-                </div>
+                </div> -->
               </motion.div>
             )}
 
