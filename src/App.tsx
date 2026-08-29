@@ -1612,60 +1612,7 @@ export default function App() {
                     </div>
                   </div>
                 )}
-
-                {/* ADDITIONAL BUTTONS FOR UNIQUE MODES */}
-                <!-- <div className="w-full text-left mt-6 pt-4 border-t border-inherit opacity-95">
-                  <div className="text-xs font-bold uppercase tracking-wider opacity-60 mb-3 px-1 flex items-center gap-1.5">
-                    <Zap size={13} className="text-amber-500" />
-                    Special Conversation Modes:
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Mode 1: AI-to-AI Mode Button */}
-                    <button
-                      type="button"
-                      onClick={() => setIsAIToAIModalOpen(true)}
-                      className="p-4 rounded-2xl border border-inherit themed-ai-bubble hover:border-pink-500/50 text-left transition-all hover:scale-[1.01] active:scale-[0.99] shadow-md group relative overflow-hidden"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="p-2.5 rounded-xl bg-pink-500/15 border border-pink-500/30 text-pink-500 group-hover:scale-110 transition-transform">
-                          <Bot size={20} />
-                        </div>
-                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-pink-500/15 text-pink-500 border border-pink-500/30 font-mono">
-                          MODE
-                        </span>
-                      </div>
-                      <div className="font-extrabold text-sm sm:text-base themed-text mb-1">
-                        AI-to-AI Dialogue Mode
-                      </div>
-                      <p className="text-xs opacity-70 leading-relaxed">
-                        Pick any 2 personas from the gallery to conduct a real-time debate or conversation.
-                      </p>
-                    </button>
-
-                    {/* Mode 2: Chess Mode Button */}
-                    <button
-                      type="button"
-                      onClick={() => setIsChessModalOpen(true)}
-                      className="p-4 rounded-2xl border border-inherit themed-ai-bubble hover:border-amber-500/50 text-left transition-all hover:scale-[1.01] active:scale-[0.99] shadow-md group relative overflow-hidden"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-500 group-hover:scale-110 transition-transform">
-                          <Trophy size={20} />
-                        </div>
-                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30 font-mono">
-                          GAME
-                        </span>
-                      </div>
-                      <div className="font-extrabold text-sm sm:text-base themed-text mb-1">
-                        Chess Match Arena
-                      </div>
-                      <p className="text-xs opacity-70 leading-relaxed">
-                        Play chess against any persona.
-                      </p>
-                    </button>
-                  </div>
-                </div> -->
+                
               </motion.div>
             )}
 
