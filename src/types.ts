@@ -41,7 +41,7 @@ export interface AIDuelConfig {
   p2Id: string;
   topic: string;
   active: boolean;
-  speed: number; // 1 = normal (1.5s), 2 = fast (0.8s), 0.5 = slow (3s)
+  speed?: number;
   currentSpeakerId: string;
 }
 

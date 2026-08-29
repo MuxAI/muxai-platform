@@ -565,7 +565,7 @@ export default function App() {
     const conv = loadConversations().find((c) => c.id === convId);
     if (!conv || !conv.aiDuelConfig || !conv.aiDuelConfig.active) return;
 
-    const { p1Id, p2Id, currentSpeakerId, speed } = conv.aiDuelConfig;
+    const { p1Id, p2Id, currentSpeakerId, topic } = conv.aiDuelConfig;
     const speakerPersonaObj = getPersonaObject(currentSpeakerId);
     const speakerPrompt = getSystemPromptForPersona(currentSpeakerId);
 
@@ -573,10 +573,18 @@ export default function App() {
     setError('');
 
     const currentMsgs = conv.messages || [];
-    const apiHistory: Message[] = currentMsgs.map((m) => ({
-      role: m.personaId === currentSpeakerId ? 'assistant' : 'user',
-      content: m.content,
-    }));
+    let apiHistory: Message[] = [];
+
+    if (currentMsgs.length === 0) {
+      // First turn by initiator: send topic as the user prompt
+      apiHistory = [{ role: 'user', content: topic }];
+    } else {
+      // Subsequent turns: each persona treats the conversation responses as user prompts
+      apiHistory = currentMsgs.map((m) => ({
+        role: m.personaId === currentSpeakerId ? 'assistant' : 'user',
+        content: m.content,
+      }));
+    }
 
     try {
       const data = await fetchAIReply(apiHistory, currentSpeakerId, {
@@ -607,12 +615,11 @@ export default function App() {
       // If duel is still active, schedule next turn
       const updatedConv = loadConversations().find((c) => c.id === convId);
       if (updatedConv?.aiDuelConfig?.active && isAIDuelRunning.current) {
-        const delayMs = speed === 2 ? 1000 : speed === 0.5 ? 4000 : 2200;
         setTimeout(() => {
           if (isAIDuelRunning.current && activeId === convId) {
             runAIDuelTurn(convId);
           }
-        }, delayMs);
+        }, 1800);
       }
     } catch {
       setError(GENERIC_ERROR);
@@ -631,34 +638,29 @@ export default function App() {
       p2Id,
       topic,
       active: true,
-      speed: 1,
       currentSpeakerId: p1Id,
     };
 
     const conv = createConversation(`AI Duel: ${p1.name} vs ${p2.name}`, p1Id);
-    const initialMsg: Message = {
-      role: 'system',
-      content: `⚡ **AI-to-AI Dialogue Arena Launched**\n\n**Topic:** "${topic}"\n\n**Participants:** **${p1.name}** (${p1.role}) vs **${p2.name}** (${p2.role}). The debate will alternate turns automatically.`,
-    };
 
     const updated = updateConversation(conv.id, (c) => ({
       ...c,
       mode: 'ai_duel',
       aiDuelConfig: duelConfig,
-      messages: [initialMsg],
+      messages: [],
       customTitle: true,
     }));
 
     setConversations(updated);
     setActiveId(conv.id);
-    setMessages([initialMsg]);
+    setMessages([]);
     isAIDuelRunning.current = true;
     showToast(`AI Dialogue between ${p1.name} & ${p2.name} started!`);
     trackEvent('ai_duel_started', { p1: p1.name, p2: p2.name });
 
     setTimeout(() => {
       runAIDuelTurn(conv.id);
-    }, 1200);
+    }, 400);
   };
 
   // Toggle AI Duel Play / Pause
@@ -688,17 +690,6 @@ export default function App() {
   const handleStepAIDuel = () => {
     if (!activeId || loading) return;
     runAIDuelTurn(activeId);
-  };
-
-  // Adjust AI Duel Speed
-  const handleSetAIDuelSpeed = (speed: number) => {
-    if (!activeId) return;
-    const updated = updateConversation(activeId, (c) => ({
-      ...c,
-      aiDuelConfig: c.aiDuelConfig ? { ...c.aiDuelConfig, speed } : undefined,
-    }));
-    setConversations(updated);
-    showToast(`Speed set to ${speed}x`);
   };
 
   // Launch Chess Mode
@@ -1178,11 +1169,11 @@ export default function App() {
 
     // Interject into AI Duel if active
     if (activeConv?.mode === 'ai_duel' && activeConv.aiDuelConfig) {
-      const userInterjectMsg: Message = {
+      const userMsg: Message = {
         role: 'user',
-        content: `[User Interjection]: ${text}`,
+        content: text,
       };
-      const updatedMsgs = [...messages, userInterjectMsg];
+      const updatedMsgs = [...messages, userMsg];
       setMessages(updatedMsgs);
       persistMessages(convId, updatedMsgs);
       if (activeConv.aiDuelConfig.active) {
@@ -1393,6 +1384,8 @@ export default function App() {
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         isOnline={isOnline}
+        onStartAIDuel={() => setIsAIToAIModalOpen(true)}
+        onStartChess={() => setIsChessModalOpen(true)}
       />
 
       {/* Right Settings & Theme Submenu Sidebar */}
@@ -1476,28 +1469,6 @@ export default function App() {
               </button>
             )}
 
-            {/* Quick Action to open AI-to-AI duel modal */}
-            <button
-              type="button"
-              onClick={() => setIsAIToAIModalOpen(true)}
-              className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-pink-500/30 bg-pink-500/10 hover:bg-pink-500/20 text-pink-300 text-xs font-semibold transition-all hover:scale-105"
-              title="Start AI-to-AI Dialogue"
-            >
-              <Bot size={14} />
-              <span>AI Duel</span>
-            </button>
-
-            {/* Quick Action to open Chess setup modal */}
-            <button
-              type="button"
-              onClick={() => setIsChessModalOpen(true)}
-              className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-semibold transition-all hover:scale-105"
-              title="Start Chess Match"
-            >
-              <Trophy size={14} />
-              <span>Chess</span>
-            </button>
-
             {/* Server Online Status Pill */}
             <div
               className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full border text-[11px] sm:text-xs font-bold transition-all shadow-sm ${
@@ -1536,7 +1507,7 @@ export default function App() {
             <div className="flex items-center gap-2">
               <span className="font-bold themed-tool-accent flex items-center gap-1.5">
                 <Zap size={14} className="text-amber-500" />
-                Duel in Progress:
+                Dialogue in Progress:
               </span>
               <span className="opacity-75 truncate max-w-[200px] sm:max-w-md">
                 {activeConv.aiDuelConfig.topic}
@@ -1563,23 +1534,6 @@ export default function App() {
                 <SkipForward size={12} />
                 <span className="hidden sm:inline">Next Turn</span>
               </button>
-
-              <div className="flex items-center gap-1 bg-black/10 dark:bg-black/40 p-0.5 rounded-xl border border-inherit">
-                {[0.5, 1, 2].map((spd) => (
-                  <button
-                    key={spd}
-                    type="button"
-                    onClick={() => handleSetAIDuelSpeed(spd)}
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold ${
-                      activeConv.aiDuelConfig?.speed === spd
-                        ? 'bg-pink-500 text-white'
-                        : 'opacity-60 hover:opacity-100'
-                    }`}
-                  >
-                    {spd}x
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
         )}
