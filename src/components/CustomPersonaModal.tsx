@@ -169,10 +169,10 @@ export function CustomPersonaModal({
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          className="w-full max-w-2xl bg-zinc-900 border border-zinc-800 text-white rounded-3xl p-5 sm:p-7 shadow-2xl my-auto"
+          className="w-full max-w-2xl themed-modal border shadow-2xl rounded-3xl p-5 sm:p-7 my-auto"
         >
           {/* Header */}
-          <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
+          <div className="flex items-center justify-between pb-4 border-b border-inherit">
             <div className="flex items-center gap-2.5">
               <div
                 className="w-9 h-9 rounded-2xl flex items-center justify-center text-white shadow-lg"
@@ -181,25 +181,25 @@ export function CustomPersonaModal({
                 <Sparkles size={18} />
               </div>
               <div>
-                <h3 className="font-extrabold text-lg sm:text-xl tracking-tight">
+                <h3 className="font-extrabold text-lg sm:text-xl tracking-tight themed-text">
                   {isEditing ? 'Edit Custom Persona' : 'Create Custom Persona'}
                 </h3>
-                <p className="text-xs text-zinc-400">
+                <p className="text-xs themed-modal-muted">
                   Build your own personalized conversational companion
                 </p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="p-2 rounded-xl hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
+              className="p-2 rounded-xl themed-btn border border-transparent hover:border-inherit transition-colors"
             >
               <X size={20} />
             </button>
           </div>
 
           {/* Persistent Local Storage Warning Banner */}
-          <div className="mt-4 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-start gap-3">
-            <AlertTriangle size={18} className="shrink-0 mt-0.5 text-amber-400" />
+          <div className="mt-4 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 text-xs flex items-start gap-3">
+            <AlertTriangle size={18} className="shrink-0 mt-0.5 text-amber-500" />
             <div className="leading-relaxed">
               <span className="font-bold">Persistent Browser Storage Notice:</span> All custom personas, prompts, and avatars are stored in your browser&apos;s local storage. Clearing cache, cookies, or website data will delete them.
             </div>
@@ -209,7 +209,7 @@ export function CustomPersonaModal({
             {/* Name, Tag, Role */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-2">
-                <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider themed-modal-muted mb-1.5">
                   Persona Name *
                 </label>
                 <input
@@ -218,12 +218,12 @@ export function CustomPersonaModal({
                   placeholder="e.g. Maya, Dr. Atlas, Nova"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-800/80 border border-zinc-700 focus:border-pink-500 text-sm outline-none transition-colors"
+                  className="w-full px-3.5 py-2.5 rounded-xl themed-modal-input border focus:border-pink-500 text-sm outline-none transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider themed-modal-muted mb-1.5">
                   Tag / Age
                 </label>
                 <input
@@ -231,14 +231,14 @@ export function CustomPersonaModal({
                   placeholder="e.g. 26F, Expert, AI"
                   value={tag}
                   onChange={(e) => setTag(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-800/80 border border-zinc-700 focus:border-pink-500 text-sm outline-none transition-colors font-mono"
+                  className="w-full px-3.5 py-2.5 rounded-xl themed-modal-input border focus:border-pink-500 text-sm outline-none transition-colors font-mono"
                 />
               </div>
             </div>
 
             {/* Role / Subtitle */}
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider themed-modal-muted mb-1.5">
                 Role / Title
               </label>
               <input
@@ -246,13 +246,13 @@ export function CustomPersonaModal({
                 placeholder="e.g. Creative Muse, Quantum Physicist, Caring Friend"
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-800/80 border border-zinc-700 focus:border-pink-500 text-sm outline-none transition-colors"
+                className="w-full px-3.5 py-2.5 rounded-xl themed-modal-input border focus:border-pink-500 text-sm outline-none transition-colors"
               />
             </div>
 
             {/* Short Card Description */}
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider themed-modal-muted mb-1.5">
                 Card Description (Summary)
               </label>
               <input
@@ -260,24 +260,24 @@ export function CustomPersonaModal({
                 placeholder="A short punchy line introducing this persona in the deck"
                 value={desc}
                 onChange={(e) => setDesc(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-800/80 border border-zinc-700 focus:border-pink-500 text-sm outline-none transition-colors"
+                className="w-full px-3.5 py-2.5 rounded-xl themed-modal-input border focus:border-pink-500 text-sm outline-none transition-colors"
               />
             </div>
 
             {/* Images: Portrait (9:14) and Logo/Avatar (1:1) with Interactive Cropper */}
-            <div className="p-4 rounded-2xl bg-zinc-800/50 border border-zinc-800 space-y-3">
-              <span className="block text-xs font-bold uppercase tracking-wider text-zinc-300">
+            <div className="p-4 rounded-2xl themed-ai-bubble border space-y-3">
+              <span className="block text-xs font-bold uppercase tracking-wider themed-text">
                 Avatar & Portrait Images (Croppable & Rotatable)
               </span>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* 1. Portrait Card Image */}
                 <div className="flex flex-col gap-2">
-                  <span className="text-[11px] text-zinc-400 font-medium">
+                  <span className="text-[11px] themed-modal-muted font-medium">
                     1. Card Portrait (9:14 Aspect)
                   </span>
                   <div className="flex items-center gap-3">
-                    <div className="w-16 h-24 rounded-xl border border-zinc-700 overflow-hidden bg-zinc-900 shrink-0 flex items-center justify-center relative shadow-inner">
+                    <div className="w-16 h-24 rounded-xl border border-inherit overflow-hidden themed-logo-box shrink-0 flex items-center justify-center relative shadow-inner">
                       {customPortrait ? (
                         <img
                           src={customPortrait}
@@ -285,7 +285,7 @@ export function CustomPersonaModal({
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <User size={24} className="text-zinc-600" />
+                        <User size={24} className="opacity-40" />
                       )}
                     </div>
 
@@ -300,7 +300,7 @@ export function CustomPersonaModal({
                       <button
                         type="button"
                         onClick={() => portraitInputRef.current?.click()}
-                        className="px-3 py-1.5 rounded-xl bg-zinc-700 hover:bg-zinc-600 active:scale-95 text-xs font-semibold flex items-center gap-1.5 transition-all"
+                        className="px-3 py-1.5 rounded-xl themed-btn border border-inherit active:scale-95 text-xs font-semibold flex items-center gap-1.5 transition-all"
                       >
                         <Upload size={13} /> Upload & Crop
                       </button>
@@ -308,7 +308,7 @@ export function CustomPersonaModal({
                         <button
                           type="button"
                           onClick={() => setCustomPortrait('')}
-                          className="text-[11px] text-red-400 hover:text-red-300 text-left transition-colors"
+                          className="text-[11px] text-red-500 hover:opacity-80 text-left transition-colors font-semibold"
                         >
                           Remove portrait
                         </button>
@@ -319,11 +319,11 @@ export function CustomPersonaModal({
 
                 {/* 2. Logo / Avatar Icon */}
                 <div className="flex flex-col gap-2">
-                  <span className="text-[11px] text-zinc-400 font-medium">
+                  <span className="text-[11px] themed-modal-muted font-medium">
                     2. Chat Avatar Logo (1:1 Square)
                   </span>
                   <div className="flex items-center gap-3">
-                    <div className="w-16 h-16 rounded-2xl border border-zinc-700 overflow-hidden bg-zinc-900 shrink-0 flex items-center justify-center relative shadow-inner">
+                    <div className="w-16 h-16 rounded-2xl border border-inherit overflow-hidden themed-logo-box shrink-0 flex items-center justify-center relative shadow-inner">
                       {customLogo ? (
                         <img
                           src={customLogo}
@@ -331,7 +331,7 @@ export function CustomPersonaModal({
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <Bot size={24} className="text-zinc-600" />
+                        <Bot size={24} className="opacity-40" />
                       )}
                     </div>
 
@@ -346,7 +346,7 @@ export function CustomPersonaModal({
                       <button
                         type="button"
                         onClick={() => logoInputRef.current?.click()}
-                        className="px-3 py-1.5 rounded-xl bg-zinc-700 hover:bg-zinc-600 active:scale-95 text-xs font-semibold flex items-center gap-1.5 transition-all"
+                        className="px-3 py-1.5 rounded-xl themed-btn border border-inherit active:scale-95 text-xs font-semibold flex items-center gap-1.5 transition-all"
                       >
                         <Upload size={13} /> Upload & Crop
                       </button>
@@ -354,7 +354,7 @@ export function CustomPersonaModal({
                         <button
                           type="button"
                           onClick={() => setCustomLogo('')}
-                          className="text-[11px] text-red-400 hover:text-red-300 text-left transition-colors"
+                          className="text-[11px] text-red-500 hover:opacity-80 text-left transition-colors font-semibold"
                         >
                           Remove avatar
                         </button>
@@ -367,7 +367,7 @@ export function CustomPersonaModal({
 
             {/* Custom System Prompt */}
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider themed-modal-muted mb-1.5">
                 System Instructions & Personality *
               </label>
               <textarea
@@ -376,13 +376,13 @@ export function CustomPersonaModal({
                 placeholder="Instruct how this persona speaks, responds, and thinks..."
                 value={systemPrompt}
                 onChange={(e) => setSystemPrompt(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-800/80 border border-zinc-700 focus:border-pink-500 text-xs sm:text-sm outline-none transition-colors resize-y font-mono"
+                className="w-full px-3.5 py-2.5 rounded-xl themed-modal-input border focus:border-pink-500 text-xs sm:text-sm outline-none transition-colors resize-y font-mono"
               />
             </div>
 
             {/* Opening Greeting */}
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider themed-modal-muted mb-1.5">
                 Initial Welcome Greeting
               </label>
               <input
@@ -390,14 +390,14 @@ export function CustomPersonaModal({
                 placeholder="What this persona says when starting a fresh chat"
                 value={greeting}
                 onChange={(e) => setGreeting(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-800/80 border border-zinc-700 focus:border-pink-500 text-xs sm:text-sm outline-none transition-colors"
+                className="w-full px-3.5 py-2.5 rounded-xl themed-modal-input border focus:border-pink-500 text-xs sm:text-sm outline-none transition-colors"
               />
             </div>
 
             {/* Badge Color & Temperature */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2">
+                <label className="block text-xs font-bold uppercase tracking-wider themed-modal-muted mb-2">
                   Theme Accent Color
                 </label>
                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -407,7 +407,7 @@ export function CustomPersonaModal({
                       type="button"
                       onClick={() => setBadgeColor(col)}
                       className={`w-6 h-6 rounded-full border-2 transition-transform active:scale-90 ${
-                        badgeColor === col ? 'scale-125 border-white shadow-md' : 'border-transparent'
+                        badgeColor === col ? 'scale-125 border-white shadow-md ring-2 ring-pink-500' : 'border-transparent'
                       }`}
                       style={{ background: col }}
                     />
@@ -424,10 +424,10 @@ export function CustomPersonaModal({
 
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                  <label className="text-xs font-bold uppercase tracking-wider themed-modal-muted">
                     Creativity (Temperature)
                   </label>
-                  <span className="text-xs font-mono font-bold text-pink-400">
+                  <span className="text-xs font-mono font-bold text-pink-500">
                     {temperature.toFixed(2)}
                   </span>
                 </div>
@@ -438,13 +438,13 @@ export function CustomPersonaModal({
                   step="0.05"
                   value={temperature}
                   onChange={(e) => setTemperature(parseFloat(e.target.value))}
-                  className="w-full h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-pink-500"
+                  className="w-full h-1.5 bg-black/20 rounded-lg appearance-none cursor-pointer accent-pink-500"
                 />
               </div>
             </div>
 
             {/* Action Bar */}
-            <div className="flex items-center justify-between gap-3 pt-5 border-t border-zinc-800">
+            <div className="flex items-center justify-between gap-3 pt-5 border-t border-inherit">
               {isEditing && onDelete && personaToEdit ? (
                 <div className="flex items-center gap-2">
                   {confirmDelete ? (
@@ -462,7 +462,7 @@ export function CustomPersonaModal({
                       <button
                         type="button"
                         onClick={() => setConfirmDelete(false)}
-                        className="px-2.5 py-2 rounded-xl bg-zinc-800 text-zinc-400 hover:text-white text-xs font-semibold"
+                        className="px-2.5 py-2 rounded-xl themed-btn border border-inherit text-xs font-semibold"
                       >
                         Cancel
                       </button>
@@ -471,7 +471,7 @@ export function CustomPersonaModal({
                     <button
                       type="button"
                       onClick={() => setConfirmDelete(true)}
-                      className="px-4 py-2.5 rounded-2xl bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 active:scale-95 text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5"
+                      className="px-4 py-2.5 rounded-2xl bg-red-500/15 border border-red-500/30 text-red-500 hover:bg-red-500/25 active:scale-95 text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5"
                     >
                       <Trash2 size={16} /> Delete
                     </button>
@@ -485,7 +485,7 @@ export function CustomPersonaModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2.5 rounded-2xl bg-zinc-800 hover:bg-zinc-700 active:scale-95 text-xs sm:text-sm font-semibold transition-all text-zinc-300"
+                  className="px-4 py-2.5 rounded-2xl themed-btn border border-inherit hover:opacity-80 active:scale-95 text-xs sm:text-sm font-semibold transition-all"
                 >
                   Cancel
                 </button>
@@ -508,20 +508,20 @@ export function CustomPersonaModal({
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="max-w-md w-full bg-zinc-900 border border-amber-500/40 rounded-3xl p-6 shadow-2xl text-center"
+            className="max-w-md w-full themed-modal border border-amber-500/40 rounded-3xl p-6 shadow-2xl text-center"
           >
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto mb-3">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-500 flex items-center justify-center mx-auto mb-3">
               <AlertTriangle size={24} />
             </div>
-            <h4 className="text-lg font-bold text-white mb-2">Local Storage Notice</h4>
-            <p className="text-xs text-zinc-300 leading-relaxed mb-6">
+            <h4 className="text-lg font-bold themed-text mb-2">Local Storage Notice</h4>
+            <p className="text-xs themed-modal-muted leading-relaxed mb-6">
               This AI platform stores all custom personas, configurations, and chat memories in your browser&apos;s local storage. Clearing cache, cookies, or website data will permanently delete all created personas.
             </p>
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => setShowWarningModal(false)}
-                className="flex-1 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-300"
+                className="flex-1 py-2.5 rounded-xl themed-btn border border-inherit text-xs font-semibold"
               >
                 Go Back
               </button>

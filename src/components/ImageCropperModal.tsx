@@ -167,16 +167,16 @@ export function ImageCropperModal({
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        className="w-full max-w-lg bg-zinc-900 border border-zinc-800 text-white rounded-3xl p-5 sm:p-6 shadow-2xl flex flex-col items-center"
+        className="w-full max-w-lg themed-modal border rounded-3xl p-5 sm:p-6 shadow-2xl flex flex-col items-center"
       >
         <div className="w-full flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Sparkles size={18} className="text-pink-500" />
-            <h3 className="font-bold text-base sm:text-lg">{title}</h3>
+            <h3 className="font-bold text-base sm:text-lg themed-text">{title}</h3>
           </div>
           <button
             onClick={onCancel}
-            className="p-1.5 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
+            className="p-1.5 rounded-full themed-btn border border-transparent hover:border-inherit transition-colors"
           >
             <X size={18} />
           </button>
@@ -220,13 +220,13 @@ export function ImageCropperModal({
             <button
               type="button"
               onClick={() => setZoom((z) => Math.max(0.3, z - 0.15))}
-              className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 active:scale-95 transition-all text-zinc-300"
+              className="p-2 rounded-xl themed-btn border border-inherit active:scale-95 transition-all"
               title="Zoom Out"
             >
               <ZoomOut size={16} />
             </button>
             <div className="flex-1 flex flex-col gap-1">
-              <div className="flex justify-between text-[11px] text-zinc-400 font-mono">
+              <div className="flex justify-between text-[11px] themed-modal-muted font-mono">
                 <span>Scale / Zoom</span>
                 <span>{Math.round(zoom * 100)}%</span>
               </div>
@@ -237,13 +237,13 @@ export function ImageCropperModal({
                 step="0.05"
                 value={zoom}
                 onChange={(e) => setZoom(parseFloat(e.target.value))}
-                className="w-full h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-pink-500"
+                className="w-full h-1.5 bg-black/20 rounded-lg appearance-none cursor-pointer accent-pink-500"
               />
             </div>
             <button
               type="button"
               onClick={() => setZoom((z) => Math.min(3.5, z + 0.15))}
-              className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 active:scale-95 transition-all text-zinc-300"
+              className="p-2 rounded-xl themed-btn border border-inherit active:scale-95 transition-all"
               title="Zoom In"
             >
               <ZoomIn size={16} />
@@ -256,14 +256,14 @@ export function ImageCropperModal({
               <button
                 type="button"
                 onClick={() => setRotation((r) => (r - 90 + 360) % 360)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 active:scale-95 text-xs font-semibold transition-all text-zinc-300"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl themed-btn border border-inherit active:scale-95 text-xs font-semibold transition-all"
               >
                 <RotateCcw size={14} /> -90°
               </button>
               <button
                 type="button"
                 onClick={() => setRotation((r) => (r + 90) % 360)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 active:scale-95 text-xs font-semibold transition-all text-zinc-300"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl themed-btn border border-inherit active:scale-95 text-xs font-semibold transition-all"
               >
                 <RotateCw size={14} /> +90°
               </button>
@@ -276,7 +276,7 @@ export function ImageCropperModal({
                 setRotation(0);
                 setZoom(1);
               }}
-              className="text-xs text-zinc-400 hover:text-white transition-colors"
+              className="text-xs themed-modal-muted hover:opacity-100 transition-opacity"
             >
               Reset Alignment
             </button>
@@ -284,11 +284,11 @@ export function ImageCropperModal({
         </div>
 
         {/* Action Buttons */}
-        <div className="w-full flex items-center gap-3 mt-6 pt-4 border-t border-zinc-800">
+        <div className="w-full flex items-center gap-3 mt-6 pt-4 border-t border-inherit">
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 py-2.5 px-4 rounded-2xl bg-zinc-800 hover:bg-zinc-700 active:scale-95 text-xs sm:text-sm font-semibold transition-all text-zinc-300"
+            className="flex-1 py-2.5 px-4 rounded-2xl themed-btn border border-inherit active:scale-95 text-xs sm:text-sm font-semibold transition-all"
           >
             Cancel
           </button>

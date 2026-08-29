@@ -86,11 +86,20 @@ export function MessageItem({
               : 'themed-ai-bubble rounded-tl-sm border'
           }`}
         >
-          {/* Header indicator in auto mode */}
+          {/* Header indicator in auto mode or chess move */}
           {isAutoChat && message.personaId && (
             <div className="text-[11px] font-bold uppercase tracking-wider mb-1.5 opacity-70 flex items-center gap-1">
               <Sparkles size={11} className="text-pink-500" />
               <span>{message.personaId}</span>
+            </div>
+          )}
+
+          {message.chessMoveSan && (
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 font-mono font-bold text-xs mb-2 shadow-sm">
+              <span>♚ Move:</span>
+              <span className="text-white bg-amber-500/20 px-1.5 py-0.5 rounded">
+                {message.chessMoveSan}
+              </span>
             </div>
           )}
 

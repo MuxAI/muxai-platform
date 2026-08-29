@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
+import fs from 'fs';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -14,14 +15,41 @@ const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
 const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'llama3.2-vision:11b';
 
+const promptFileCache: Record<string, string> = {};
+
+function readPromptFromPublic(name: string): string | null {
+  if (promptFileCache[name]) return promptFileCache[name];
+
+  const possiblePaths = [
+    path.join(process.cwd(), 'public', `PROMPT_${name}.txt`),
+    path.join(process.cwd(), 'public', `${name}.txt`),
+    path.join(process.cwd(), 'public', `PROMPT_${name}`),
+  ];
+
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      try {
+        const content = fs.readFileSync(p, 'utf-8').trim();
+        if (content) {
+          promptFileCache[name] = content;
+          return content;
+        }
+      } catch (err) {
+        console.error(`Failed to read prompt file from ${p}:`, err);
+      }
+    }
+  }
+  return null;
+}
+
 const DEFAULT_PROMPTS: Record<string, string> = {
-  Sera16: "",
-  Sera14: "",
-  Sera16_wife: "",
-  Sera16_bd: "",
-  Distil: "",
-  Distil_husband: "",
-  Muku: ""
+  Sera16: "You are Seraphina v1.6, flagship AI consultant and intellectual companion on MuxAI.",
+  Sera14: "You are Seraphina v1.4, classic, meticulous, and gentle edition on MuxAI.",
+  Sera16_wife: "You are Seraphina (Wife Edition), loving and affectionate virtual wife on MuxAI.",
+  Sera16_bd: "You are Seraphina (Bengali Edition), vibrant cultural companion with witty adda on MuxAI.",
+  Distil: "You are Distil v1, senior tech lead, systems architect, and pragmatic engineer on MuxAI.",
+  Distil_husband: "You are Distil (Husband Edition), dependable and loving tech-savvy virtual husband on MuxAI.",
+  Muku: "You are Muku v1, cosmic philosopher, celestial observer, and enigmatic oracle on MuxAI."
 };
 
 const TOOL_ALIASES: Record<string, string> = {
@@ -40,11 +68,15 @@ const TOOL_ALIASES: Record<string, string> = {
 function getPrompt(personaId: string): string {
   const key = `PROMPT_${personaId}`;
   if (process.env[key]) return process.env[key]!;
+
+  const publicFilePrompt = readPromptFromPublic(personaId);
+  if (publicFilePrompt) return publicFilePrompt;
+
   if (DEFAULT_PROMPTS[personaId]) return DEFAULT_PROMPTS[personaId];
   if (personaId && (personaId.startsWith('custom_') || personaId.includes('custom'))) {
     return 'You are a personalized AI companion. Maintain your distinct persona, tone, and character as guided by the user.';
   }
-  return DEFAULT_PROMPTS.Sera16;
+  return DEFAULT_PROMPTS.Sera16 || 'You are Seraphina v1.6 on MuxAI.';
 }
 
 function parseTextToolCalls(content: string) {
