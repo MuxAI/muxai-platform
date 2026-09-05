@@ -74,7 +74,10 @@ export async function checkServerPing(): Promise<{ online: boolean; model?: stri
       const endpoint = `${config.customUrl.replace(/\/$/, '')}/`;
       const res = await fetch(endpoint, {
         method: 'GET',
-        headers: { 'ngrok-skip-browser-warning': 'true' },
+        headers: {
+        'ngrok-skip-browser-warning': 'true',
+        'User-Agent': 'MuxAI/2.4',
+      },
       });
       if (res.ok) {
         return { online: true, model: 'Custom Endpoint' };
