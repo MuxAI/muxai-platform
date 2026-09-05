@@ -1,4 +1,5 @@
 import { Message } from '../types';
+import { getServerConfig } from './storage';
 
 export async function fetchAIReply(
   messages: Message[],
@@ -64,12 +65,27 @@ export async function analyzeImageWithVision(prompt: string, images: string[], m
   return data.reply || '';
 }
 
-export async function checkServerPing(): Promise<{ online: boolean; model?: string; mode?: string }> {
+
+export async function checkServerPing(): Promise<{ online: boolean; model?: string }> {
   try {
+    const config = getServerConfig();
+    
+    if (config.mode === 'custom' && config.customUrl) {
+      const endpoint = `${config.customUrl.replace(/\/$/, '')}/v1/models`;
+      const res = await fetch(endpoint, {
+        method: 'GET',
+        headers: { 'ngrok-skip-browser-warning': 'true' },
+      });
+      if (res.ok) {
+        return { online: true, model: 'Custom Endpoint' };
+      }
+      return { online: false };
+    }
+
     const res = await fetch('/api/ping');
     if (!res.ok) return { online: false };
     const data = await res.json();
-    return { online: data.status === 'online', model: data.model, mode: data.mode };
+    return { online: data.status === 'online', model: data.model };
   } catch {
     return { online: false };
   }

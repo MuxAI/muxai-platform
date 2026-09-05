@@ -224,6 +224,28 @@ export function setGraphicsQuality(quality: GraphicsQuality): void {
   }
 }
 
+export interface ServerConfig {
+  mode: 'default' | 'custom';
+  customUrl: string;
+}
+
+export function getServerConfig(): ServerConfig {
+  try {
+    const mode = (localStorage.getItem('muxai_server_mode') as 'default' | 'custom') || 'default';
+    const customUrl = localStorage.getItem('muxai_custom_backend_url') || '';
+    return { mode, customUrl };
+  } catch {
+    return { mode: 'default', customUrl: '' };
+  }
+}
+
+export function saveServerConfig(mode: 'default' | 'custom', customUrl: string): void {
+  try {
+    localStorage.setItem('muxai_server_mode', mode);
+    localStorage.setItem('muxai_custom_backend_url', customUrl.trim());
+  } catch {}
+}
+
 // Full Data Export Structure
 export interface MuxAIExportPackage {
   format: 'muxai-backup';
