@@ -69,22 +69,41 @@ export async function analyzeImageWithVision(prompt: string, images: string[], m
 export async function checkServerPing(): Promise<{ online: boolean; model?: string }> {
   try {
     const config = getServerConfig();
-    
+
     if (config.mode === 'custom' && config.customUrl) {
-      const endpoint = `${config.customUrl.replace(/\/$/, '')}/`;
-      const res = await fetch(endpoint, {
+      const baseUrl = config.customUrl.replace(/\/+$/, '');
+
+      // 1. Primary check: Hit Ollama / standard LLM tags endpoint to get active model
+      try {
+        const res = await fetch(`${baseUrl}/api/tags`, {
+          method: 'GET',
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+          },
+        });
+
+        if (res.ok) {
+          const data = await res.json().catch(() => null);
+          const activeModel = data?.models?.[0]?.name || 'Custom Endpoint';
+          return { online: true, model: activeModel };
+        }
+      } catch {
+        // Fall through to basic root ping if CORS/preflight fails on /api/tags
+      }
+
+      // 2. Fallback check: Hit root endpoint for custom proxies or non-Ollama servers
+      const rootRes = await fetch(`${baseUrl}/`, {
         method: 'GET',
-        headers: {
-        'ngrok-skip-browser-warning': 'true',
-        'User-Agent': 'MuxAI/2.4',
-      },
       });
-      if (res.ok) {
+
+      if (rootRes.ok) {
         return { online: true, model: 'Custom Endpoint' };
       }
+
       return { online: false };
     }
 
+    // Default internal API ping route
     const res = await fetch('/api/ping');
     if (!res.ok) return { online: false };
     const data = await res.json();
