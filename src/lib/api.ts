@@ -71,7 +71,7 @@ export async function checkServerPing(): Promise<{ online: boolean; model?: stri
     const config = getServerConfig();
     
     if (config.mode === 'custom' && config.customUrl) {
-      const endpoint = `${config.customUrl.replace(/\/$/, '')}/v1/models`;
+      const endpoint = `${config.customUrl.replace(/\/$/, '')}/api/generate`;
       const res = await fetch(endpoint, {
         method: 'GET',
         headers: { 'ngrok-skip-browser-warning': 'true' },
