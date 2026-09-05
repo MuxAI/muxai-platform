@@ -70,8 +70,14 @@ export default async function handler(req, res) {
       customPrompt = null,
       jsonMode = false, 
       tools = null, 
-      temperature = 0.6 
+      temperature = 0.6,
+      serverUrl = null // 1. Extract serverUrl from request body
     } = req.body || {};
+
+    // 2. Resolve active base URL dynamically
+    const activeBaseUrl = (serverUrl && typeof serverUrl === 'string' && serverUrl.trim())
+      ? serverUrl.trim()
+      : OLLAMA_BASE_URL;
 
     const history = Array.isArray(messages) ? messages : [];
     const explicitPrompt =
@@ -115,8 +121,8 @@ export default async function handler(req, res) {
       payload.tool_choice = 'auto';
     }
 
-    // Ping Ollama's OpenAI-compatible endpoint through the ngrok tunnel
-    const endpoint = `${OLLAMA_BASE_URL.replace(/\/$/, '')}/v1/chat/completions`;
+    // 3. Construct endpoint using resolved activeBaseUrl
+    const endpoint = `${activeBaseUrl.replace(/\/$/, '')}/v1/chat/completions`;
     const upstream = await fetch(endpoint, {
       method: 'POST',
       headers: { 
@@ -129,7 +135,7 @@ export default async function handler(req, res) {
     if (!upstream.ok) {
       const lastErrorDetail = await upstream.text();
       return res.status(502).json({ 
-        error: 'Colab Ollama instance failed', 
+        error: 'Ollama instance failed', 
         detail: lastErrorDetail 
       });
     }

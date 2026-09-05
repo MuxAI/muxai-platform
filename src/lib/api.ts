@@ -1,6 +1,14 @@
 import { Message } from '../types';
 import { getServerConfig } from './storage';
 
+function getActiveServerUrl(): string | undefined {
+  const cfg = getServerConfig();
+  if (cfg.mode === 'custom' && cfg.customUrl && cfg.customUrl.trim()) {
+    return cfg.customUrl.trim();
+  }
+  return undefined;
+}
+
 export async function fetchAIReply(
   messages: Message[],
   personaId: string | null = null,
@@ -9,9 +17,12 @@ export async function fetchAIReply(
     tools?: any;
     temperature?: number;
     systemPrompt?: string;
+    serverUrl: string;
   } = {}
 ) {
   const { jsonMode = false, tools = null, temperature = 0.6, systemPrompt } = options;
+
+  const serverUrl = getActiveServerUrl();
 
   const res = await fetch('/api/chat', {
     method: 'POST',
@@ -22,6 +33,7 @@ export async function fetchAIReply(
       systemPrompt,
       jsonMode,
       tools,
+      serverUrl,
       temperature,
     }),
   });
