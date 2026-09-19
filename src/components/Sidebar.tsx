@@ -256,7 +256,7 @@ export function Sidebar({
             </span>
           </div>
           <div className="text-[10px] text-center opacity-60">
-            © Makron, HuanMux & MuxAI 2026
+            © Senturisk 2026
           </div>
         </div>
       </aside>
