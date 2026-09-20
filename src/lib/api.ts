@@ -1,14 +1,6 @@
 import { Message } from '../types';
 import { getServerConfig } from './storage';
 
-function getActiveServerUrl(): string | undefined {
-  const cfg = getServerConfig();
-  if (cfg.mode === 'custom' && cfg.customUrl && cfg.customUrl.trim()) {
-    return cfg.customUrl.trim();
-  }
-  return undefined;
-}
-
 export async function fetchAIReply(
   messages: Message[],
   personaId: string | null = null,
@@ -17,12 +9,9 @@ export async function fetchAIReply(
     tools?: any;
     temperature?: number;
     systemPrompt?: string;
-    serverUrl: string;
   } = {}
 ) {
   const { jsonMode = false, tools = null, temperature = 0.6, systemPrompt } = options;
-
-  const serverUrl = getActiveServerUrl();
 
   const res = await fetch('/api/chat', {
     method: 'POST',
@@ -33,7 +22,6 @@ export async function fetchAIReply(
       systemPrompt,
       jsonMode,
       tools,
-      serverUrl,
       temperature,
     }),
   });
@@ -81,41 +69,19 @@ export async function analyzeImageWithVision(prompt: string, images: string[], m
 export async function checkServerPing(): Promise<{ online: boolean; model?: string }> {
   try {
     const config = getServerConfig();
-
+    
     if (config.mode === 'custom' && config.customUrl) {
-      const baseUrl = config.customUrl.replace(/\/+$/, '');
-
-      // 1. Primary check: Hit Ollama / standard LLM tags endpoint to get active model
-      try {
-        const res = await fetch(`${baseUrl}/api/tags`, {
-          method: 'GET',
-          headers: {
-            'ngrok-skip-browser-warning': 'true',
-          },
-        });
-
-        if (res.ok) {
-          const data = await res.json().catch(() => null);
-          const activeModel = data?.models?.[0]?.name || 'Custom Endpoint';
-          return { online: true, model: activeModel };
-        }
-      } catch {
-        // Fall through to basic root ping if CORS/preflight fails on /api/tags
-      }
-
-      // 2. Fallback check: Hit root endpoint for custom proxies or non-Ollama servers
-      const rootRes = await fetch(`${baseUrl}/`, {
+      const endpoint = `${config.customUrl.replace(/\/$/, '')}/v1/models`;
+      const res = await fetch(endpoint, {
         method: 'GET',
+        headers: { 'ngrok-skip-browser-warning': 'true' },
       });
-
-      if (rootRes.ok) {
+      if (res.ok) {
         return { online: true, model: 'Custom Endpoint' };
       }
-
       return { online: false };
     }
 
-    // Default internal API ping route
     const res = await fetch('/api/ping');
     if (!res.ok) return { online: false };
     const data = await res.json();

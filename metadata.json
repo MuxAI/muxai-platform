@@ -1,0 +1,8 @@
+{
+  "name": "MuxAI",
+  "description": "Conversational personas with LLM abilities, no ratelimits, no restrictions!",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
