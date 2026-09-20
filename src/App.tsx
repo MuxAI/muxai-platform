@@ -38,7 +38,6 @@ import { NavierStokesGlyphs } from './components/NavierStokesGlyphs';
 import { CustomPersonaModal } from './components/CustomPersonaModal';
 import { CustomThemeModal } from './components/CustomThemeModal';
 import { ImportConflictModal } from './components/ImportConflictModal';
-import { ServerConfigModal } from './components/ServerConfigModal';
 import { WelcomeReviewModal } from './components/WelcomeReviewModal';
 import { AIToAIModal } from './components/AIToAIModal';
 import { ChessSetupModal } from './components/ChessSetupModal';
@@ -184,7 +183,6 @@ export default function App() {
   const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
   const [importConflicts, setImportConflicts] = useState<ImportConflict[]>([]);
   const [pendingImportPackage, setPendingImportPackage] = useState<MuxAIExportPackage | null>(null);
-  const [isServerModalOpen, setIsServerModalOpen] = useState(false);
 
   const [rateInfo, setRateInfo] = useState<RateInfo>({
     blocked: false,
@@ -1473,14 +1471,13 @@ export default function App() {
 
             {/* Server Online Status Pill */}
             <div
-              onClick={() => setIsServerModalOpen(true)}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full border text-[11px] sm:text-xs font-bold transition-all shadow-sm cursor-pointer hover:scale-105 active:scale-95 ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full border text-[11px] sm:text-xs font-bold transition-all shadow-sm ${
                 isOnline ? 'themed-online' : 'themed-offline'
               }`}
               title={
                 isOnline
-                  ? `Self-hosted Ollama connection active (${serverModel || 'Ready'}). Click to configure.`
-                  : 'Ollama model server unreachable. Click to set custom URL.'
+                  ? `Self-hosted Ollama connection active (${serverModel || 'Ready'})`
+                  : 'Ollama model server unreachable'
               }
             >
               <div
@@ -1761,17 +1758,6 @@ export default function App() {
           onCancel={() => setDeleteTarget(null)}
         />
       )}
-
-      {/* Backend Server Custom Config Modal */}
-      <ServerConfigModal
-        isOpen={isServerModalOpen}
-        onClose={() => setIsServerModalOpen(false)}
-        onConfigSaved={async () => {
-          const info = await checkServerPing();
-          setIsOnline(info.online);
-          if (info.model) setServerModel(info.model);
-        }}
-      />
 
       {/* Import Conflict Resolution Modal */}
       {pendingImportPackage && (
