@@ -259,7 +259,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
   } catch (err: any) {
     return res.status(502).json({
       error: 'Self-hosted Ollama server is offline or unreachable.',
-      detail: `Ensure your Ollama server is running at ${OLLAMA_BASE_URL}. (${err?.message || 'Connection failed'})`,
+      detail: `Ensure the Ollama server is running at ${OLLAMA_BASE_URL}. (${err?.message || 'Connection failed'})`,
     });
   }
 });

@@ -25,7 +25,7 @@ export async function fetchAIReply(
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || err.error || `Server returned ${res.status}`);
+    throw new Error(err.detail || err.error || `Server might be offline/unstable. Received error: ${res.status}`);
   }
 
   return await res.json();

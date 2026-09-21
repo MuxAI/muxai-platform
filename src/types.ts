@@ -50,11 +50,6 @@ export interface Persona {
   badgeColor?: string;
   greeting?: string;
   avatarSeed?: string;
-  isCustom?: boolean;
-  systemPrompt?: string;
-  customLogo?: string;
-  customPortrait?: string;
-  temperature?: number;
 }
 
 export interface ThemeDefinition {
@@ -63,7 +58,6 @@ export interface ThemeDefinition {
   isDark: boolean;
   swatches: string[];
   vars: Record<string, string>;
-  isCustom?: boolean;
 }
 
 export interface ModelOptions {
@@ -90,13 +84,3 @@ export interface RateInfo {
   resetIn: number;
   max: number;
 }
-
-export interface ImportConflict {
-  id: string;
-  type: 'conversation' | 'persona' | 'theme';
-  title: string;
-  existingItem: any;
-  incomingItem: any;
-  differences: string[];
-}
-
