@@ -1,6 +1,5 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
-import fs from 'fs';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -17,26 +16,31 @@ const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'llama3.2-vision:
 
 const promptFileCache: Record<string, string> = {};
 
-function readPromptFromFile(name: string): string | null {
+async function fetchPromptFile(name: string, req: Request): Promise<string | null> {
   if (promptFileCache[name]) return promptFileCache[name];
 
-  const possiblePaths = [
-    path.join(process.cwd(), `PROMPT_${name}.txt`),
-    path.join(process.cwd(), `${name}.txt`),
-    path.join(process.cwd(), `PROMPT_${name}`),
+  const protocol = req.headers['x-forwarded-proto'] || 'http';
+  const host = req.headers.host;
+  const baseUrl = `${protocol}://${host}`;
+
+  const possibleUrls = [
+    `${baseUrl}/PROMPT_${name}.txt`,
+    `${baseUrl}/${name}.txt`,
+    `${baseUrl}/PROMPT_${name}`,
   ];
 
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) {
-      try {
-        const content = fs.readFileSync(p, 'utf-8').trim();
+  for (const url of possibleUrls) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) {
+        const content = (await response.text()).trim();
         if (content) {
           promptFileCache[name] = content;
           return content;
         }
-      } catch (err) {
-        console.error(`Failed to read prompt file from ${p}:`, err);
       }
+    } catch (err) {
+      console.error(`Failed to fetch prompt file from ${url}:`, err);
     }
   }
   return null;
@@ -65,8 +69,8 @@ const TOOL_ALIASES: Record<string, string> = {
   web_lookup: 'web_search',
 };
 
-function getPrompt(personaId: string): string {
-  const filePrompt = readPromptFromFile(personaId);
+async function getPrompt(personaId: string, req: Request): Promise<string> {
+  const filePrompt = await fetchPromptFile(personaId, req);
   if (filePrompt) return filePrompt;
 
   if (DEFAULT_PROMPTS[personaId]) return DEFAULT_PROMPTS[personaId];
@@ -221,7 +225,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
         : typeof customPrompt === 'string' && customPrompt.trim()
         ? customPrompt.trim()
         : null;
-    const basePrompt = explicitPrompt || getPrompt(personaId);
+    const basePrompt = explicitPrompt || await getPrompt(personaId, req);
 
     const cap = tools && Array.isArray(tools) && tools.length > 0 ? 25 : 16;
     const recentHistory = history.slice(-cap);
