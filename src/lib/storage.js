@@ -1,0 +1,89 @@
+// src/lib/storage.js
+const KEY = 'seraphina_state_v1';
+const THEME_KEY = 'seraphina_theme_v1';
+
+export function loadState() {
+  try {
+    return JSON.parse(localStorage.getItem(KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+export function saveState(state) {
+  localStorage.setItem(KEY, JSON.stringify(state));
+}
+
+export function loadConversations() {
+  return loadState().conversations || [];
+}
+
+export function saveConversations(conversations) {
+  const state = loadState();
+  state.conversations = conversations;
+  saveState(state);
+}
+
+export function createConversation(title = 'New chat', personaId = 'Sera16') {
+  const conv = {
+    id: `c_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    title,
+    personaId,
+    messages: [],
+    createdAt: Date.now(),
+  };
+  const convs = loadConversations();
+  convs.unshift(conv);
+  saveConversations(convs);
+  return conv;
+}
+
+export function deleteConversation(id) {
+  const convs = loadConversations().filter((c) => c.id !== id);
+  saveConversations(convs);
+  return convs;
+}
+
+export function updateConversation(id, updater) {
+  const convs = loadConversations();
+  const idx = convs.findIndex((c) => c.id === id);
+  if (idx === -1) return convs;
+  convs[idx] = updater(convs[idx]) || convs[idx];
+  saveConversations(convs);
+  return convs;
+}
+
+const RATE_MAX = 30;
+const RATE_WINDOW_MS = 30 * 60 * 1000;
+
+export function getRateInfo() {
+  const state = loadState();
+  const now = Date.now();
+  const timestamps = (state.rateTimestamps || []).filter((t) => now - t < RATE_WINDOW_MS);
+  return {
+    count: timestamps.length,
+    remaining: Math.max(0, RATE_MAX - timestamps.length),
+    blocked: timestamps.length >= RATE_MAX,
+    oldest: timestamps[0] || null,
+    resetIn: timestamps[0] ? Math.max(0, RATE_WINDOW_MS - (now - timestamps[0])) : 0,
+    max: RATE_MAX,
+  };
+}
+
+export function recordMessage() {
+  const state = loadState();
+  const now = Date.now();
+  const timestamps = (state.rateTimestamps || []).filter((t) => now - t < RATE_WINDOW_MS);
+  timestamps.push(now);
+  state.rateTimestamps = timestamps;
+  saveState(state);
+  return getRateInfo();
+}
+
+export function getTheme() {
+  return localStorage.getItem(THEME_KEY) || 'classic-light';
+}
+
+export function setTheme(theme) {
+  localStorage.setItem(THEME_KEY, theme);
+}
