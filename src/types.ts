@@ -1,5 +1,3 @@
-import { ChessGameState, ChessMove, PieceColor } from './lib/chessEngine';
-
 export interface Attachment {
   id: string;
   name: string;
@@ -30,19 +28,6 @@ export interface Message {
   timestamp?: number;
   toolCalls?: ToolCall[];
   error?: boolean;
-  chessMove?: ChessMove;
-  chessBoardText?: string;
-  chessMoveSan?: string;
-  isChessComment?: boolean;
-}
-
-export interface AIDuelConfig {
-  p1Id: string;
-  p2Id: string;
-  topic: string;
-  active: boolean;
-  speed?: number;
-  currentSpeakerId: string;
 }
 
 export interface Conversation {
@@ -54,11 +39,6 @@ export interface Conversation {
   updatedAt?: number;
   customTitle?: boolean;
   pinned?: boolean;
-  mode?: 'standard' | 'ai_duel' | 'chess';
-  aiDuelConfig?: AIDuelConfig;
-  chessState?: ChessGameState;
-  chessPlayerColor?: PieceColor;
-  chessOpponentId?: string;
 }
 
 export interface Persona {

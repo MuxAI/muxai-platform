@@ -16,14 +16,6 @@ import {
   UserPlus,
   Settings,
   CheckCircle2,
-  Trophy,
-  Swords,
-  Play,
-  Pause,
-  SkipForward,
-  Download,
-  SquareCheck,
-  RotateCcw,
 } from 'lucide-react';
 import { Logo } from './components/Logo';
 import { Sidebar } from './components/Sidebar';
@@ -38,24 +30,6 @@ import { NavierStokesGlyphs } from './components/NavierStokesGlyphs';
 import { CustomPersonaModal } from './components/CustomPersonaModal';
 import { CustomThemeModal } from './components/CustomThemeModal';
 import { ImportConflictModal } from './components/ImportConflictModal';
-import { WelcomeReviewModal } from './components/WelcomeReviewModal';
-import { AIToAIModal } from './components/AIToAIModal';
-import { ChessSetupModal } from './components/ChessSetupModal';
-import { ChessBoardDisplay } from './components/ChessBoardDisplay';
-import { ChessMoveInputPanel } from './components/ChessMoveInputPanel';
-import {
-  createInitialGameState,
-  makeMove,
-  selectPersonaMove,
-  getPersonalityMoveComment,
-  renderBoardText,
-  getLegalMoves,
-  ChessGameState,
-  ChessMove,
-  Square as ChessSquare,
-  PieceColor,
-} from './lib/chessEngine';
-import { trackEvent } from './lib/analytics';
 import { PERSONAS, getAllPersonas, getPersonaById } from './lib/constants';
 import { THEMES, getAllThemes, applyTheme, Theme } from './lib/themes';
 import {
@@ -98,7 +72,6 @@ import {
   Attachment,
   Persona,
   ImportConflict,
-  AIDuelConfig,
 } from './types';
 
 const GENERIC_ERROR =
@@ -158,26 +131,6 @@ export default function App() {
   const [settingsSidebarOpen, setSettingsSidebarOpen] = useState(false);
   const [graphicsQuality, setGraphicsQualityState] = useState<GraphicsQuality>(() => getGraphicsQuality());
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  // First-visit review modal state
-  const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(() => {
-    try {
-      return localStorage.getItem('muxai_has_visited') !== 'true';
-    } catch {
-      return false;
-    }
-  });
-
-  // PWA install prompt state
-  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<any>(null);
-  const [canInstall, setCanInstall] = useState(false);
-
-  // New Modes modals state
-  const [isAIToAIModalOpen, setIsAIToAIModalOpen] = useState(false);
-  const [isChessModalOpen, setIsChessModalOpen] = useState(false);
-
-  // Interactive Chess selection state
-  const [selectedChessSquare, setSelectedChessSquare] = useState<ChessSquare | null>(null);
 
   // Import conflicts state
   const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
@@ -247,42 +200,7 @@ export default function App() {
 
   const [autoConfig, setAutoConfig] = useState<{ p1: string; p2: string } | null>(null);
   const isAutoRunning = useRef(false);
-  const isAIDuelRunning = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const mainScrollRef = useRef<HTMLDivElement>(null);
-  const prevActiveIdRef = useRef<string | null>(null);
-  const prevMessagesLengthRef = useRef<number>(0);
-
-  // Listen for PWA beforeinstallprompt
-  useEffect(() => {
-    const handler = (e: any) => {
-      e.preventDefault();
-      setDeferredInstallPrompt(e);
-      setCanInstall(true);
-    };
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, []);
-
-  const handleInstallApp = async () => {
-    if (!deferredInstallPrompt) return;
-    deferredInstallPrompt.prompt();
-    const { outcome } = await deferredInstallPrompt.userChoice;
-    if (outcome === 'accepted') {
-      showToast('Thank you for installing MuxAI!');
-      trackEvent('pwa_installed');
-    }
-    setDeferredInstallPrompt(null);
-    setCanInstall(false);
-  };
-
-  const handleAcceptWelcomeTerms = () => {
-    try {
-      localStorage.setItem('muxai_has_visited', 'true');
-    } catch {}
-    setIsWelcomeModalOpen(false);
-    trackEvent('first_visit_acknowledged');
-  };
 
   // Initialize theme
   useEffect(() => {
@@ -351,22 +269,10 @@ export default function App() {
     }
   }, [activeId, conversations]);
 
-  // Natural scroll handling: keep view near top on homepage / empty chats, and only smooth-scroll when new messages arrive or loading
+  // Auto scroll
   useEffect(() => {
-    const isNewConversation = prevActiveIdRef.current !== activeId;
-    prevActiveIdRef.current = activeId;
-
-    if (isNewConversation || messages.length === 0) {
-      mainScrollRef.current?.scrollTo({ top: 0, behavior: 'instant' });
-      prevMessagesLengthRef.current = messages.length;
-      return;
-    }
-
-    if (messages.length > prevMessagesLengthRef.current || loading || toolProgress) {
-      scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-    prevMessagesLengthRef.current = messages.length;
-  }, [messages, loading, toolProgress, activeId]);
+    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading, toolProgress]);
 
   // Rate info timer
   useEffect(() => {
@@ -514,7 +420,6 @@ export default function App() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
       showToast('All workspace data exported successfully!');
-      trackEvent('data_exported');
     } catch (err: any) {
       setError(`Failed to export data: ${err?.message || err}`);
     }
@@ -540,7 +445,6 @@ export default function App() {
           applyImportedData(result.dataPackage);
           reloadAllStorageData();
           showToast('Data imported and merged successfully!');
-          trackEvent('data_imported');
         }
       } catch (err: any) {
         setError(`Failed to process backup file: ${err?.message || err}`);
@@ -557,394 +461,55 @@ export default function App() {
     applyImportedData(pkg, resolutions);
     reloadAllStorageData();
     showToast('Import completed with your conflict selections!');
-    trackEvent('data_imported_resolved');
   };
 
-  // AI Duel Loop Execution for any 2 selected personas
-  const runAIDuelTurn = async (convId: string) => {
-    const conv = loadConversations().find((c) => c.id === convId);
-    if (!conv || !conv.aiDuelConfig || !conv.aiDuelConfig.active) return;
 
-    const { p1Id, p2Id, currentSpeakerId, topic } = conv.aiDuelConfig;
-    const speakerPersonaObj = getPersonaObject(currentSpeakerId);
-    const speakerPrompt = getSystemPromptForPersona(currentSpeakerId);
+  // Dual-Agent Auto Chat loop (when `?auto=0` or `?auto=1`)
+  const autoChatLoop = async (convId: string, initialMsgs: Message[], p1: string, p2: string) => {
+    isAutoRunning.current = true;
+    let currentMsgs = [...initialMsgs];
+    let currentSpeaker = p2;
 
-    setLoading(true);
-    setError('');
+    const stopLoop = () => {
+      isAutoRunning.current = false;
+    };
+    window.addEventListener('beforeunload', stopLoop);
 
-    const currentMsgs = conv.messages || [];
-    let apiHistory: Message[] = [];
+    while (isAutoRunning.current) {
+      setLoading(true);
+      setError('');
 
-    if (currentMsgs.length === 0) {
-      // First turn by initiator: send topic as the user prompt
-      apiHistory = [{ role: 'user', content: topic }];
-    } else {
-      // Subsequent turns: each persona treats the conversation responses as user prompts
-      apiHistory = currentMsgs.map((m) => ({
-        role: m.personaId === currentSpeakerId ? 'assistant' : 'user',
+      const apiHistory: Message[] = currentMsgs.map((m) => ({
+        role: m.personaId === currentSpeaker ? 'assistant' : 'user',
         content: m.content,
       }));
-    }
 
-    try {
-      const data = await fetchAIReply(apiHistory, currentSpeakerId, {
-        jsonMode: false,
-        temperature: speakerPersonaObj?.temperature ?? 0.7,
-        systemPrompt: speakerPrompt,
-      });
+      try {
+        const speakerPersonaObj = getPersonaObject(currentSpeaker);
+        const speakerPrompt = getSystemPromptForPersona(currentSpeaker);
+        const data = await fetchAIReply(apiHistory, currentSpeaker, {
+          jsonMode: false,
+          temperature: speakerPersonaObj?.temperature ?? 0.7,
+          systemPrompt: speakerPrompt,
+        });
 
-      const replyText = data.reply || '';
-      const aiMsg: Message = {
-        role: 'assistant',
-        personaId: currentSpeakerId,
-        content: replyText,
-      };
+        const replyText = data.reply || '';
+        const uiRole: 'user' | 'assistant' = currentSpeaker === p1 ? 'user' : 'assistant';
+        const aiMsg: Message = { role: uiRole, personaId: currentSpeaker, content: replyText };
 
-      const nextSpeaker = currentSpeakerId === p1Id ? p2Id : p1Id;
-      const updatedMsgs = [...currentMsgs, aiMsg];
+        currentMsgs = [...currentMsgs, aiMsg];
+        setMessages(currentMsgs);
+        persistMessages(convId, currentMsgs);
 
-      updateConversation(convId, (c) => ({
-        ...c,
-        messages: updatedMsgs,
-        aiDuelConfig: c.aiDuelConfig ? { ...c.aiDuelConfig, currentSpeakerId: nextSpeaker } : undefined,
-      }));
-
-      setConversations(loadConversations());
-      setMessages(updatedMsgs);
-
-      // If duel is still active, schedule next turn
-      const updatedConv = loadConversations().find((c) => c.id === convId);
-      if (updatedConv?.aiDuelConfig?.active && isAIDuelRunning.current) {
-        setTimeout(() => {
-          if (isAIDuelRunning.current && activeId === convId) {
-            runAIDuelTurn(convId);
-          }
-        }, 1800);
-      }
-    } catch {
-      setError(GENERIC_ERROR);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Launch AI-to-AI Dialogue
-  const handleStartAIDuel = (p1Id: string, p2Id: string, topic: string) => {
-    const p1 = getPersonaObject(p1Id) || allPersonas[0];
-    const p2 = getPersonaObject(p2Id) || allPersonas[1] || allPersonas[0];
-
-    const duelConfig: AIDuelConfig = {
-      p1Id,
-      p2Id,
-      topic,
-      active: true,
-      currentSpeakerId: p1Id,
-    };
-
-    const conv = createConversation(`AI Duel: ${p1.name} vs ${p2.name}`, p1Id);
-
-    const updated = updateConversation(conv.id, (c) => ({
-      ...c,
-      mode: 'ai_duel',
-      aiDuelConfig: duelConfig,
-      messages: [],
-      customTitle: true,
-    }));
-
-    setConversations(updated);
-    setActiveId(conv.id);
-    setMessages([]);
-    isAIDuelRunning.current = true;
-    showToast(`AI Dialogue between ${p1.name} & ${p2.name} started!`);
-    trackEvent('ai_duel_started', { p1: p1.name, p2: p2.name });
-
-    setTimeout(() => {
-      runAIDuelTurn(conv.id);
-    }, 400);
-  };
-
-  // Toggle AI Duel Play / Pause
-  const handleToggleAIDuel = () => {
-    if (!activeId) return;
-    const conv = conversations.find((c) => c.id === activeId);
-    if (!conv || !conv.aiDuelConfig) return;
-
-    const nextActive = !conv.aiDuelConfig.active;
-    isAIDuelRunning.current = nextActive;
-
-    const updated = updateConversation(activeId, (c) => ({
-      ...c,
-      aiDuelConfig: c.aiDuelConfig ? { ...c.aiDuelConfig, active: nextActive } : undefined,
-    }));
-    setConversations(updated);
-
-    if (nextActive) {
-      showToast('AI Dialogue resumed');
-      runAIDuelTurn(activeId);
-    } else {
-      showToast('AI Dialogue paused');
-    }
-  };
-
-  // Step AI Duel Manually
-  const handleStepAIDuel = () => {
-    if (!activeId || loading) return;
-    runAIDuelTurn(activeId);
-  };
-
-  // Launch Chess Mode
-  const handleStartChess = (opponentId: string, playerColor: PieceColor) => {
-    const opp = getPersonaObject(opponentId) || allPersonas[0];
-    const initialBoard = createInitialGameState();
-    const isPlayerWhite = playerColor === 'w';
-
-    const conv = createConversation(`Chess vs ${opp.name}`, opponentId);
-    const welcomeComment = isPlayerWhite
-      ? `Welcome to our chess match! You are playing **White** and have the first move. Let's make this an unforgettable game!`
-      : `Welcome to our chess match! You are playing **Black**. I am White and will make the opening move now. Let's begin!`;
-
-    const initialMsg: Message = {
-      role: 'assistant',
-      personaId: opponentId,
-      content: welcomeComment,
-      chessBoardText: renderBoardText(initialBoard.board),
-    };
-
-    const updated = updateConversation(conv.id, (c) => ({
-      ...c,
-      mode: 'chess',
-      chessState: initialBoard,
-      chessPlayerColor: playerColor,
-      chessOpponentId: opponentId,
-      messages: [initialMsg],
-      customTitle: true,
-    }));
-
-    setConversations(updated);
-    setActiveId(conv.id);
-    setMessages([initialMsg]);
-    setSelectedChessSquare(null);
-    showToast(`Chess game with ${opp.name} started!`);
-    trackEvent('chess_game_started', { opponent: opp.name, playerColor });
-
-    // If player is Black, AI makes the opening move as White
-    if (!isPlayerWhite) {
-      setTimeout(() => {
-        handleTriggerAIMove(conv.id, initialBoard, opponentId);
-      }, 1000);
-    }
-  };
-
-  // Trigger AI Chess Move
-  const handleTriggerAIMove = async (convId: string, currentState: ChessGameState, opponentId: string) => {
-    setLoading(true);
-    setError('');
-
-    const oppPersonaObj = getPersonaObject(opponentId);
-    const oppPrompt = getSystemPromptForPersona(opponentId);
-
-    try {
-      // Allow slight delay for natural contemplation
-      await new Promise((r) => setTimeout(r, 600));
-
-      const aiMove = selectPersonaMove(currentState, opponentId, oppPrompt);
-      if (!aiMove) {
-        setLoading(false);
-        return;
-      }
-
-      const nextState = makeMove(currentState, aiMove);
-      const comment = getPersonalityMoveComment(opponentId, aiMove, nextState, true);
-
-      const aiMsg: Message = {
-        role: 'assistant',
-        personaId: opponentId,
-        content: comment,
-        chessMoveSan: aiMove.san,
-        chessMove: aiMove,
-        chessBoardText: renderBoardText(nextState.board),
-      };
-
-      const updated = updateConversation(convId, (c) => ({
-        ...c,
-        chessState: nextState,
-        messages: [...(c.messages || []), aiMsg],
-      }));
-
-      setConversations(updated);
-      setMessages((prev) => [...prev, aiMsg]);
-      recordMessage();
-    } catch (err: any) {
-      setError(err?.message || 'Chess engine encountered an error.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle Player Chess Move
-  const handleMakeChessMove = (move: ChessMove) => {
-    if (!activeId || loading) return;
-    const conv = conversations.find((c) => c.id === activeId);
-    if (!conv || !conv.chessState || conv.mode !== 'chess') return;
-
-    const opponentId = conv.chessOpponentId || conv.personaId || 'Sera16';
-    const playerColor = conv.chessPlayerColor || 'w';
-
-    if (conv.chessState.turn !== playerColor) return;
-
-    const nextState = makeMove(conv.chessState, move);
-    setSelectedChessSquare(null);
-
-    const playerMsg: Message = {
-      role: 'user',
-      content: `I play **${move.san}** (${move.from} to ${move.to}).`,
-      chessMoveSan: move.san,
-      chessMove: move,
-      chessBoardText: renderBoardText(nextState.board),
-    };
-
-    const newMsgs = [...messages, playerMsg];
-    setMessages(newMsgs);
-
-    updateConversation(activeId, (c) => ({
-      ...c,
-      chessState: nextState,
-      messages: newMsgs,
-    }));
-    setConversations(loadConversations());
-
-    // If game is not over, trigger AI's counter-move
-    if (!nextState.isCheckmate && !nextState.isDraw) {
-      handleTriggerAIMove(activeId, nextState, opponentId);
-    } else {
-      // Game ended
-      const endMsg: Message = {
-        role: 'assistant',
-        personaId: opponentId,
-        content: nextState.isCheckmate
-          ? `🏆 **Checkmate!** Congratulations, you played a masterful victory!`
-          : `🤝 **Game Drawn!** A fiercely contested battle.`,
-      };
-      const finalMsgs = [...newMsgs, endMsg];
-      setMessages(finalMsgs);
-      persistMessages(activeId, finalMsgs);
-    }
-  };
-
-  // Handle Chess Board Square Click
-  const handleChessSquareClick = (sq: ChessSquare) => {
-    if (!activeId || loading) return;
-    const conv = conversations.find((c) => c.id === activeId);
-    if (!conv || !conv.chessState || conv.mode !== 'chess') return;
-
-    const playerColor = conv.chessPlayerColor || 'w';
-    if (conv.chessState.turn !== playerColor) return;
-
-    const legal = getLegalMoves(conv.chessState);
-
-    if (selectedChessSquare) {
-      const matchMove = legal.find((m) => m.from === selectedChessSquare && m.to === sq);
-      if (matchMove) {
-        handleMakeChessMove(matchMove);
-        return;
+        currentSpeaker = currentSpeaker === p1 ? p2 : p1;
+        await new Promise((resolve) => setTimeout(resolve, 2500));
+      } catch {
+        setError(GENERIC_ERROR);
+        isAutoRunning.current = false;
       }
     }
-
-    // Check if clicked square has a piece belonging to player
-    const hasPlayerPiece = legal.some((m) => m.from === sq);
-    if (hasPlayerPiece) {
-      setSelectedChessSquare(sq);
-    } else {
-      setSelectedChessSquare(null);
-    }
-  };
-
-  // Resign Chess Match
-  const handleResignChess = () => {
-    if (!activeId) return;
-    const conv = conversations.find((c) => c.id === activeId);
-    if (!conv || !conv.chessState) return;
-
-    const oppId = conv.chessOpponentId || 'Sera16';
-    const resignMsg: Message = {
-      role: 'user',
-      content: 'I resign the game. Good match!',
-    };
-    const oppMsg: Message = {
-      role: 'assistant',
-      personaId: oppId,
-      content: 'Good game! You defended tenaciously. Whenever you are ready for a rematch, let me know!',
-    };
-
-    const finalMsgs = [...messages, resignMsg, oppMsg];
-    setMessages(finalMsgs);
-    persistMessages(activeId, finalMsgs);
-    showToast('Match resigned');
-  };
-
-  // Offer Draw Chess Match
-  const handleOfferDrawChess = () => {
-    if (!activeId) return;
-    const conv = conversations.find((c) => c.id === activeId);
-    if (!conv || !conv.chessState) return;
-
-    const oppId = conv.chessOpponentId || 'Sera16';
-    const drawMsg: Message = {
-      role: 'user',
-      content: 'I offer a draw.',
-    };
-    const oppMsg: Message = {
-      role: 'assistant',
-      personaId: oppId,
-      content: 'I agree to the draw! The position is completely balanced and honors both sides.',
-    };
-
-    const finalMsgs = [...messages, drawMsg, oppMsg];
-    setMessages(finalMsgs);
-    persistMessages(activeId, finalMsgs);
-    showToast('Draw agreed');
-  };
-
-  // Send In-Game Chess Banter / Chat
-  const handleSendChessChat = async (text: string) => {
-    if (!activeId || loading) return;
-    const conv = conversations.find((c) => c.id === activeId);
-    if (!conv) return;
-
-    const oppId = conv.chessOpponentId || 'Sera16';
-    const oppPrompt = getSystemPromptForPersona(oppId);
-
-    const userMsg: Message = { role: 'user', content: text };
-    const newMsgs = [...messages, userMsg];
-    setMessages(newMsgs);
-    persistMessages(activeId, newMsgs);
-
-    setLoading(true);
-    try {
-      const chessContext = `We are currently in a live chess match. The current board state is: \n${renderBoardText(
-        conv.chessState?.board || createInitialGameState().board
-      )}\nUser says: "${text}". Reply in character while acknowledging the chess game naturally.`;
-
-      const data = await fetchAIReply(
-        [{ role: 'user', content: chessContext }],
-        oppId,
-        { jsonMode: false, systemPrompt: oppPrompt }
-      );
-
-      const aiMsg: Message = {
-        role: 'assistant',
-        personaId: oppId,
-        content: data.reply || 'Let us keep playing!',
-      };
-
-      const finalMsgs = [...newMsgs, aiMsg];
-      setMessages(finalMsgs);
-      persistMessages(activeId, finalMsgs);
-    } catch {
-      setError(GENERIC_ERROR);
-    } finally {
-      setLoading(false);
-    }
+    setLoading(false);
+    window.removeEventListener('beforeunload', stopLoop);
   };
 
   // Direct Image Generation Action
@@ -1004,7 +569,7 @@ export default function App() {
     }
   };
 
-  // Retry a user message
+  // Retry a user message: keeps messages up to this user message, and regenerates the response without duplicating the user prompt bubble
   const handleRetry = async (msgIndex: number, userMessage: Message) => {
     if (loading || !isOnline) return;
 
@@ -1149,13 +714,6 @@ export default function App() {
     }
 
     const activeConv = currentConvs.find((c) => c.id === convId);
-
-    // If active conversation is in Chess mode, handle as chat banter
-    if (activeConv?.mode === 'chess') {
-      handleSendChessChat(text);
-      return;
-    }
-
     const personaToUse = activeConv?.personaId || selectedPersona;
     const activePersonaObj = getPersonaObject(personaToUse);
     const personaPrompt = getSystemPromptForPersona(personaToUse);
@@ -1167,17 +725,19 @@ export default function App() {
       setConversations(currentConvs);
     }
 
-    // Interject into AI Duel if active
-    if (activeConv?.mode === 'ai_duel' && activeConv.aiDuelConfig) {
+    if (autoConfig) {
       const userMsg: Message = {
         role: 'user',
+        personaId: autoConfig.p1,
         content: text,
+        attachments,
       };
-      const updatedMsgs = [...messages, userMsg];
-      setMessages(updatedMsgs);
-      persistMessages(convId, updatedMsgs);
-      if (activeConv.aiDuelConfig.active) {
-        runAIDuelTurn(convId);
+      const newMsgs = [...messages, userMsg];
+      setMessages(newMsgs);
+      persistMessages(convId, newMsgs);
+
+      if (!isAutoRunning.current) {
+        autoChatLoop(convId, newMsgs, autoConfig.p1, autoConfig.p2);
       }
       return;
     }
@@ -1347,16 +907,6 @@ export default function App() {
   const currentPersonaInfo =
     allPersonas.find((p) => p.id === currentPersonaId) || allPersonas[0];
 
-  // Chess specific calculations
-  const isChessMode = activeConv?.mode === 'chess';
-  const currentChessState = activeConv?.chessState || createInitialGameState();
-  const playerChessColor = activeConv?.chessPlayerColor || 'w';
-  const chessLegalMoves = isChessMode ? getLegalMoves(currentChessState) : [];
-  const validChessDestinations = selectedChessSquare
-    ? chessLegalMoves.filter((m) => m.from === selectedChessSquare).map((m) => m.to)
-    : [];
-  const lastChessMove = currentChessState.history[currentChessState.history.length - 1] || null;
-
   return (
     <div className="themed-bg themed-text h-screen w-screen overflow-hidden relative select-text">
       {/* Navier-Stokes Fluid Glyphs Simulation snaking in background */}
@@ -1384,8 +934,6 @@ export default function App() {
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         isOnline={isOnline}
-        onStartAIDuel={() => setIsAIToAIModalOpen(true)}
-        onStartChess={() => setIsChessModalOpen(true)}
       />
 
       {/* Right Settings & Theme Submenu Sidebar */}
@@ -1437,18 +985,14 @@ export default function App() {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-extrabold text-sm sm:text-base tracking-tight">
-                    {activeConv?.mode === 'ai_duel' ? 'AI Dialogue Arena' : activeConv?.mode === 'chess' ? 'Chess Arena' : currentPersonaInfo.name}
+                    {currentPersonaInfo.name}
                   </span>
                   <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full themed-chip border">
-                    {activeConv?.mode === 'ai_duel' ? 'DUAL' : activeConv?.mode === 'chess' ? 'CHESS' : currentPersonaInfo.tag}
+                    {currentPersonaInfo.tag}
                   </span>
                 </div>
                 <div className="text-[10px] opacity-60 hidden sm:block truncate max-w-xs">
-                  {activeConv?.mode === 'ai_duel'
-                    ? activeConv.aiDuelConfig?.topic || 'Autonomous persona debate'
-                    : activeConv?.mode === 'chess'
-                    ? `Playing vs ${currentPersonaInfo.name}`
-                    : currentPersonaInfo.role}
+                  {currentPersonaInfo.role}
                 </div>
               </div>
             </div>
@@ -1456,19 +1000,6 @@ export default function App() {
 
           {/* Right Header Actions */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Install Web App Button if available */}
-            {canInstall && (
-              <button
-                type="button"
-                onClick={handleInstallApp}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-pink-500/15 hover:bg-pink-500/25 border border-pink-500/40 text-pink-300 font-bold text-xs transition-all hover:scale-105"
-                title="Install MuxAI to Desktop / Home screen"
-              >
-                <Download size={13} />
-                <span>Install App</span>
-              </button>
-            )}
-
             {/* Server Online Status Pill */}
             <div
               className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full border text-[11px] sm:text-xs font-bold transition-all shadow-sm ${
@@ -1501,45 +1032,8 @@ export default function App() {
           </div>
         </header>
 
-        {/* AI Duel Active Top Controls Bar */}
-        {activeConv?.mode === 'ai_duel' && activeConv.aiDuelConfig && (
-          <div className="themed-sidebar-panel border-b border-inherit px-4 py-2.5 backdrop-blur-md flex flex-wrap items-center justify-between gap-3 text-xs z-10">
-            <div className="flex items-center gap-2">
-              <span className="font-bold themed-tool-accent flex items-center gap-1.5">
-                <Zap size={14} className="text-amber-500" />
-                Dialogue in Progress:
-              </span>
-              <span className="opacity-75 truncate max-w-[200px] sm:max-w-md">
-                {activeConv.aiDuelConfig.topic}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleToggleAIDuel}
-                className="px-3 py-1.5 rounded-xl bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/40 text-pink-400 font-bold flex items-center gap-1.5 transition-all"
-              >
-                {activeConv.aiDuelConfig.active ? <Pause size={12} /> : <Play size={12} />}
-                <span>{activeConv.aiDuelConfig.active ? 'Pause' : 'Resume'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleStepAIDuel}
-                disabled={loading}
-                className="px-2.5 py-1.5 rounded-xl themed-btn border border-inherit flex items-center gap-1 hover:opacity-90"
-                title="Force Next Speaker Turn"
-              >
-                <SkipForward size={12} />
-                <span className="hidden sm:inline">Next Turn</span>
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Chat History & Welcome Screen */}
-        <main ref={mainScrollRef} className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 sm:py-6">
+        <main className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 sm:py-6">
           <div className="max-w-3xl mx-auto space-y-4 sm:space-y-6">
             {/* Empty State / Welcome Screen */}
             {messages.length === 0 && !loading && (
@@ -1587,7 +1081,7 @@ export default function App() {
                   />
                 </div>
 
-                {/* Quick Prompt Starters */}
+                {/* Quick Prompt Starters (Disabled for custom personas without preset starters) */}
                 {QUICK_STARTERS[selectedPersona] && QUICK_STARTERS[selectedPersona].length > 0 && (
                   <div className="w-full text-left mt-2">
                     <div className="text-xs font-bold uppercase tracking-wider opacity-60 mb-2.5 px-1">
@@ -1612,7 +1106,6 @@ export default function App() {
                     </div>
                   </div>
                 )}
-                
               </motion.div>
             )}
 
@@ -1623,7 +1116,7 @@ export default function App() {
                   key={i}
                   message={msg}
                   personaId={currentPersonaId}
-                  isAutoChat={Boolean(autoConfig) || activeConv?.mode === 'ai_duel'}
+                  isAutoChat={Boolean(autoConfig)}
                   onRetry={msg.role === 'user' ? () => handleRetry(i, msg) : undefined}
                 />
               ))}
@@ -1643,19 +1136,6 @@ export default function App() {
                   <ToolProgressDisplay progress={toolProgress || { phase: 'thinking' }} />
                 </div>
               </motion.div>
-            )}
-
-            {/* Chess Mode Interactive Board View always at the bottom of the conversation */}
-            {isChessMode && (
-              <ChessBoardDisplay
-                state={currentChessState}
-                playerColor={playerChessColor}
-                selectedSquare={selectedChessSquare}
-                validDestinations={validChessDestinations}
-                lastMove={lastChessMove}
-                onSquareClick={handleChessSquareClick}
-                interactive={!loading && currentChessState.turn === playerChessColor}
-              />
             )}
 
             {/* Error Banner */}
@@ -1679,55 +1159,16 @@ export default function App() {
           </div>
         </main>
 
-        {/* Input Bar: Specialized Chess Move Panel if in Chess Mode, otherwise standard ChatInput */}
-        {isChessMode ? (
-          <ChessMoveInputPanel
-            state={currentChessState}
-            playerColor={playerChessColor}
-            onMakeMove={handleMakeChessMove}
-            onResign={handleResignChess}
-            onOfferDraw={handleOfferDrawChess}
-            onNewGame={() => setIsChessModalOpen(true)}
-            onSendChatMessage={handleSendChessChat}
-            disabled={loading}
-            selectedSquare={selectedChessSquare}
-            onSelectSquare={setSelectedChessSquare}
-          />
-        ) : (
-          <ChatInput
-            onSend={handleSend}
-            onGenerateImage={handleGenerateImage}
-            disabled={loading || rateInfo.blocked}
-            isOnline={isOnline}
-            options={modelOptions}
-            onOptionsChange={setModelOptions}
-          />
-        )}
+        {/* Input Bar */}
+        <ChatInput
+          onSend={handleSend}
+          onGenerateImage={handleGenerateImage}
+          disabled={loading || rateInfo.blocked}
+          isOnline={isOnline}
+          options={modelOptions}
+          onOptionsChange={setModelOptions}
+        />
       </div>
-
-      {/* First-Visit Welcome & Legal Review Modal */}
-      <WelcomeReviewModal
-        isOpen={isWelcomeModalOpen}
-        onAccept={handleAcceptWelcomeTerms}
-        canInstall={canInstall}
-        onInstallApp={handleInstallApp}
-      />
-
-      {/* AI-to-AI Mode Selection Modal */}
-      <AIToAIModal
-        isOpen={isAIToAIModalOpen}
-        onClose={() => setIsAIToAIModalOpen(false)}
-        personas={allPersonas}
-        onStartDuel={handleStartAIDuel}
-      />
-
-      {/* Chess Match Setup Modal */}
-      <ChessSetupModal
-        isOpen={isChessModalOpen}
-        onClose={() => setIsChessModalOpen(false)}
-        personas={allPersonas}
-        onStartGame={handleStartChess}
-      />
 
       {/* Custom Persona Modal */}
       <CustomPersonaModal
@@ -1791,4 +1232,5 @@ export default function App() {
     </div>
   );
 }
+
 
