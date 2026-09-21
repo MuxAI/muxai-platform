@@ -49,8 +49,9 @@ function parseTextToolCalls(content) {
 }
 
 function getPrompt(personaId) {
+  if (!personaId) return process.env.PROMPT_Sera16 || '';
   const key = `PROMPT_${personaId}`;
-  return process.env[key] || process.env.PROMPT_Sera16;
+  return process.env[key] || process.env.PROMPT_Sera16 || '';
 }
 
 export default async function handler(req, res) {
@@ -64,14 +65,28 @@ export default async function handler(req, res) {
   try {
     const { 
       messages, 
-      personaId = 'Sera16', 
+      personaId = null, 
+      systemPrompt = null,
+      customPrompt = null,
       jsonMode = false, 
       tools = null, 
-      temperature = 0.6 
+      temperature = 0.6,
+      serverUrl = null // 1. Extract serverUrl from request body
     } = req.body || {};
 
+    // 2. Resolve active base URL dynamically
+    const activeBaseUrl = (serverUrl && typeof serverUrl === 'string' && serverUrl.trim())
+      ? serverUrl.trim()
+      : OLLAMA_BASE_URL;
+
     const history = Array.isArray(messages) ? messages : [];
-    const basePrompt = getPrompt(personaId);
+    const explicitPrompt =
+      typeof systemPrompt === 'string' && systemPrompt.trim()
+        ? systemPrompt.trim()
+        : typeof customPrompt === 'string' && customPrompt.trim()
+        ? customPrompt.trim()
+        : null;
+    const basePrompt = explicitPrompt || getPrompt(personaId);
 
     const cap = tools && Array.isArray(tools) && tools.length > 0 ? 25 : 12;
     const recentHistory = history.slice(-cap);
@@ -106,8 +121,8 @@ export default async function handler(req, res) {
       payload.tool_choice = 'auto';
     }
 
-    // Ping Ollama's OpenAI-compatible endpoint through the ngrok tunnel
-    const endpoint = `${OLLAMA_BASE_URL.replace(/\/$/, '')}/v1/chat/completions`;
+    // 3. Construct endpoint using resolved activeBaseUrl
+    const endpoint = `${activeBaseUrl.replace(/\/$/, '')}/v1/chat/completions`;
     const upstream = await fetch(endpoint, {
       method: 'POST',
       headers: { 
@@ -120,7 +135,7 @@ export default async function handler(req, res) {
     if (!upstream.ok) {
       const lastErrorDetail = await upstream.text();
       return res.status(502).json({ 
-        error: 'Colab Ollama instance failed', 
+        error: 'Ollama instance failed', 
         detail: lastErrorDetail 
       });
     }

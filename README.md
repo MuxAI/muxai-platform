@@ -1,2 +1,2 @@
 # muxai-platform
-Integration of multiple LLM personalities
+Vibe coded frontend edition of MuxAi. Via Google AI Studio + other coding agents.
