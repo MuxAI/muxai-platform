@@ -1,4 +1,7 @@
 // api/chat.js
+import fs from 'fs/promises';
+import path from 'path';
+
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
 
@@ -48,10 +51,25 @@ function parseTextToolCalls(content) {
   return { toolCalls: calls, reply };
 }
 
-function getPrompt(personaId) {
-  if (!personaId) return process.env.PROMPT_Sera16 || '';
-  const key = `PROMPT_${personaId}`;
-  return process.env[key] || process.env.PROMPT_Sera16 || '';
+async function getPrompt(personaId) {
+  const defaultId = 'Sera16';
+  const targetId = personaId || defaultId;
+  
+  const tryReadFile = async (id) => {
+    try {
+      // Assumes the text files are located in the root directory
+      const filePath = path.join(process.cwd(), `PROMPT_${id}.txt`);
+      return await fs.readFile(filePath, 'utf8');
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const prompt = await tryReadFile(targetId);
+  if (prompt !== null) return prompt;
+  
+  const defaultPrompt = await tryReadFile(defaultId);
+  return defaultPrompt || '';
 }
 
 export default async function handler(req, res) {
@@ -86,7 +104,7 @@ export default async function handler(req, res) {
         : typeof customPrompt === 'string' && customPrompt.trim()
         ? customPrompt.trim()
         : null;
-    const basePrompt = explicitPrompt || getPrompt(personaId);
+    const basePrompt = explicitPrompt || await getPrompt(personaId);
 
     const cap = tools && Array.isArray(tools) && tools.length > 0 ? 25 : 12;
     const recentHistory = history.slice(-cap);

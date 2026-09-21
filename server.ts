@@ -17,13 +17,13 @@ const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'llama3.2-vision:
 
 const promptFileCache: Record<string, string> = {};
 
-function readPromptFromPublic(name: string): string | null {
+function readPromptFromFile(name: string): string | null {
   if (promptFileCache[name]) return promptFileCache[name];
 
   const possiblePaths = [
-    path.join(process.cwd(), 'public', `PROMPT_${name}.txt`),
-    path.join(process.cwd(), 'public', `${name}.txt`),
-    path.join(process.cwd(), 'public', `PROMPT_${name}`),
+    path.join(process.cwd(), `PROMPT_${name}.txt`),
+    path.join(process.cwd(), `${name}.txt`),
+    path.join(process.cwd(), `PROMPT_${name}`),
   ];
 
   for (const p of possiblePaths) {
@@ -66,11 +66,8 @@ const TOOL_ALIASES: Record<string, string> = {
 };
 
 function getPrompt(personaId: string): string {
-  const key = `PROMPT_${personaId}`;
-  if (process.env[key]) return process.env[key]!;
-
-  const publicFilePrompt = readPromptFromPublic(personaId);
-  if (publicFilePrompt) return publicFilePrompt;
+  const filePrompt = readPromptFromFile(personaId);
+  if (filePrompt) return filePrompt;
 
   if (DEFAULT_PROMPTS[personaId]) return DEFAULT_PROMPTS[personaId];
   if (personaId && (personaId.startsWith('custom_') || personaId.includes('custom'))) {
