@@ -2,23 +2,21 @@ import { Message } from '../types';
 
 export async function fetchAIReply(
   messages: Message[],
-  personaId: string | null = null,
+  personaId = 'Sera16',
   options: {
     jsonMode?: boolean;
     tools?: any;
     temperature?: number;
-    systemPrompt?: string;
   } = {}
 ) {
-  const { jsonMode = false, tools = null, temperature = 0.6, systemPrompt } = options;
+  const { jsonMode = false, tools = null, temperature = 0.6 } = options;
 
   const res = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       messages,
-      personaId: personaId || undefined,
-      systemPrompt,
+      personaId,
       jsonMode,
       tools,
       temperature,
@@ -33,12 +31,12 @@ export async function fetchAIReply(
   return await res.json();
 }
 
-export async function generateTitle(messages: Message[], personaId: string | null = null): Promise<string | null> {
+export async function generateTitle(messages: Message[], personaId = 'Sera16'): Promise<string | null> {
   try {
     const res = await fetch('/api/generate-title', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages, personaId: personaId || undefined }),
+      body: JSON.stringify({ messages, personaId }),
     });
     if (!res.ok) return null;
     const data = await res.json().catch(() => ({}));

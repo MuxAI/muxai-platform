@@ -49,9 +49,8 @@ function parseTextToolCalls(content) {
 }
 
 function getPrompt(personaId) {
-  if (!personaId) return process.env.PROMPT_Sera16 || '';
   const key = `PROMPT_${personaId}`;
-  return process.env[key] || process.env.PROMPT_Sera16 || '';
+  return process.env[key] || process.env.PROMPT_Sera16;
 }
 
 export default async function handler(req, res) {
@@ -65,22 +64,14 @@ export default async function handler(req, res) {
   try {
     const { 
       messages, 
-      personaId = null, 
-      systemPrompt = null,
-      customPrompt = null,
+      personaId = 'Sera16', 
       jsonMode = false, 
       tools = null, 
       temperature = 0.6 
     } = req.body || {};
 
     const history = Array.isArray(messages) ? messages : [];
-    const explicitPrompt =
-      typeof systemPrompt === 'string' && systemPrompt.trim()
-        ? systemPrompt.trim()
-        : typeof customPrompt === 'string' && customPrompt.trim()
-        ? customPrompt.trim()
-        : null;
-    const basePrompt = explicitPrompt || getPrompt(personaId);
+    const basePrompt = getPrompt(personaId);
 
     const cap = tools && Array.isArray(tools) && tools.length > 0 ? 25 : 12;
     const recentHistory = history.slice(-cap);

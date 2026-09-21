@@ -30,7 +30,7 @@ import { NavierStokesGlyphs } from './components/NavierStokesGlyphs';
 import { CustomPersonaModal } from './components/CustomPersonaModal';
 import { CustomThemeModal } from './components/CustomThemeModal';
 import { ImportConflictModal } from './components/ImportConflictModal';
-import { PERSONAS, getAllPersonas, getPersonaById } from './lib/constants';
+import { PERSONAS, getAllPersonas } from './lib/constants';
 import { THEMES, getAllThemes, applyTheme, Theme } from './lib/themes';
 import {
   fetchAIReply,
@@ -174,29 +174,6 @@ export default function App() {
   const allThemes = useMemo(() => {
     return [...THEMES, ...customThemes];
   }, [customThemes]);
-
-  const getPersonaObject = (pId: string | null | undefined): Persona | null => {
-    if (!pId) return null;
-    return allPersonas.find((p) => p.id === pId) || getPersonaById(pId);
-  };
-
-  const getSystemPromptForPersona = (pId: string | null | undefined): string | undefined => {
-    if (!pId) return undefined;
-    const personaObj = getPersonaObject(pId);
-    if (!personaObj) return undefined;
-    if (personaObj.systemPrompt && personaObj.systemPrompt.trim()) {
-      return personaObj.systemPrompt.trim();
-    }
-    if (personaObj.isCustom || pId.startsWith('custom_') || pId.includes('custom')) {
-      const parts = [
-        `You are ${personaObj.name}.`,
-        personaObj.role ? `Role: ${personaObj.role}.` : '',
-        personaObj.desc ? `Persona description: ${personaObj.desc}.` : '',
-      ].filter(Boolean);
-      return parts.join(' ');
-    }
-    return undefined;
-  };
 
   const [autoConfig, setAutoConfig] = useState<{ p1: string; p2: string } | null>(null);
   const isAutoRunning = useRef(false);
@@ -485,12 +462,9 @@ export default function App() {
       }));
 
       try {
-        const speakerPersonaObj = getPersonaObject(currentSpeaker);
-        const speakerPrompt = getSystemPromptForPersona(currentSpeaker);
         const data = await fetchAIReply(apiHistory, currentSpeaker, {
           jsonMode: false,
-          temperature: speakerPersonaObj?.temperature ?? 0.7,
-          systemPrompt: speakerPrompt,
+          temperature: 0.7,
         });
 
         const replyText = data.reply || '';
@@ -582,8 +556,6 @@ export default function App() {
 
     const activeConv = conversations.find((c) => c.id === convId);
     const personaToUse = activeConv?.personaId || selectedPersona;
-    const activePersonaObj = getPersonaObject(personaToUse);
-    const personaPrompt = getSystemPromptForPersona(personaToUse);
 
     setLoading(true);
     setError('');
@@ -603,9 +575,8 @@ export default function App() {
       for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
         const data = await fetchAIReply(conversationHistory, personaToUse, {
           jsonMode: modelOptions.jsonMode,
-          temperature: activePersonaObj?.temperature ?? modelOptions.temperature,
+          temperature: modelOptions.temperature,
           tools: round === 0 ? tools : null,
-          systemPrompt: personaPrompt,
         });
 
         if (!data.toolCalls || !Array.isArray(data.toolCalls) || data.toolCalls.length === 0) {
@@ -673,9 +644,8 @@ export default function App() {
         setToolProgress({ phase: 'thinking_after_tools' });
         const finalData = await fetchAIReply(conversationHistory, personaToUse, {
           jsonMode: modelOptions.jsonMode,
-          temperature: activePersonaObj?.temperature ?? modelOptions.temperature,
+          temperature: modelOptions.temperature,
           tools: null,
-          systemPrompt: personaPrompt,
         });
         const replyText = finalData.reply || 'Data retrieved successfully.';
         const aiMsg: Message = {
@@ -715,8 +685,6 @@ export default function App() {
 
     const activeConv = currentConvs.find((c) => c.id === convId);
     const personaToUse = activeConv?.personaId || selectedPersona;
-    const activePersonaObj = getPersonaObject(personaToUse);
-    const personaPrompt = getSystemPromptForPersona(personaToUse);
 
     if (activeConv && activeConv.title === 'New chat' && messages.length === 0) {
       const firstWords = text ? text.slice(0, 24) : `Chat #${currentConvs.length}`;
@@ -807,9 +775,8 @@ export default function App() {
       for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
         const data = await fetchAIReply(conversationHistory, personaToUse, {
           jsonMode: modelOptions.jsonMode,
-          temperature: activePersonaObj?.temperature ?? modelOptions.temperature,
+          temperature: modelOptions.temperature,
           tools: round === 0 ? tools : null,
-          systemPrompt: personaPrompt,
         });
 
         if (!data.toolCalls || !Array.isArray(data.toolCalls) || data.toolCalls.length === 0) {
@@ -878,9 +845,8 @@ export default function App() {
         setToolProgress({ phase: 'thinking_after_tools' });
         const finalData = await fetchAIReply(conversationHistory, personaToUse, {
           jsonMode: modelOptions.jsonMode,
-          temperature: activePersonaObj?.temperature ?? modelOptions.temperature,
+          temperature: modelOptions.temperature,
           tools: null,
-          systemPrompt: personaPrompt,
         });
         const replyText = finalData.reply || 'Data retrieved successfully.';
         const aiMsg: Message = {
@@ -1081,31 +1047,29 @@ export default function App() {
                   />
                 </div>
 
-                {/* Quick Prompt Starters (Disabled for custom personas without preset starters) */}
-                {QUICK_STARTERS[selectedPersona] && QUICK_STARTERS[selectedPersona].length > 0 && (
-                  <div className="w-full text-left mt-2">
-                    <div className="text-xs font-bold uppercase tracking-wider opacity-60 mb-2.5 px-1">
-                      Try Asking {currentPersonaInfo.name}:
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {QUICK_STARTERS[selectedPersona].map(
-                        (prompt, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => handleSend(prompt)}
-                            className="text-left p-3 rounded-2xl border border-inherit themed-ai-bubble text-xs sm:text-sm font-medium transition-all hover:scale-[1.01] hover:border-pink-400 active:scale-[0.99] shadow-sm flex items-start gap-2.5 group"
-                          >
-                            <Sparkles
-                              size={15}
-                              className="themed-tool-accent shrink-0 mt-0.5 group-hover:rotate-12 transition-transform"
-                            />
-                            <span className="leading-snug">{prompt}</span>
-                          </button>
-                        )
-                      )}
-                    </div>
+                {/* Quick Prompt Starters */}
+                <div className="w-full text-left mt-2">
+                  <div className="text-xs font-bold uppercase tracking-wider opacity-60 mb-2.5 px-1">
+                    Try Asking {currentPersonaInfo.name}:
                   </div>
-                )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {(QUICK_STARTERS[selectedPersona] || QUICK_STARTERS.Sera16).map(
+                      (prompt, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => handleSend(prompt)}
+                          className="text-left p-3 rounded-2xl border border-inherit themed-ai-bubble text-xs sm:text-sm font-medium transition-all hover:scale-[1.01] hover:border-pink-400 active:scale-[0.99] shadow-sm flex items-start gap-2.5 group"
+                        >
+                          <Sparkles
+                            size={15}
+                            className="themed-tool-accent shrink-0 mt-0.5 group-hover:rotate-12 transition-transform"
+                          />
+                          <span className="leading-snug">{prompt}</span>
+                        </button>
+                      )
+                    )}
+                  </div>
+                </div>
               </motion.div>
             )}
 

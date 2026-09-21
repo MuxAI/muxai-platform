@@ -15,7 +15,7 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
 const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'llama3.2-vision:11b';
 
 const DEFAULT_PROMPTS: Record<string, string> = {
-  Sera16: "",
+   Sera16: "",
   Sera14: "",
   Sera16_wife: "",
   Sera16_bd: "",
@@ -39,12 +39,7 @@ const TOOL_ALIASES: Record<string, string> = {
 
 function getPrompt(personaId: string): string {
   const key = `PROMPT_${personaId}`;
-  if (process.env[key]) return process.env[key]!;
-  if (DEFAULT_PROMPTS[personaId]) return DEFAULT_PROMPTS[personaId];
-  if (personaId && (personaId.startsWith('custom_') || personaId.includes('custom'))) {
-    return 'You are a personalized AI companion. Maintain your distinct persona, tone, and character as guided by the user.';
-  }
-  return DEFAULT_PROMPTS.Sera16;
+  return process.env[key] || DEFAULT_PROMPTS[personaId] || DEFAULT_PROMPTS.Sera16;
 }
 
 function parseTextToolCalls(content: string) {
@@ -178,21 +173,13 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     const {
       messages = [],
       personaId = 'Sera16',
-      systemPrompt = null,
-      customPrompt = null,
       jsonMode = false,
       tools = null,
       temperature = 0.6,
     } = req.body || {};
 
     const history = Array.isArray(messages) ? messages : [];
-    const explicitPrompt =
-      typeof systemPrompt === 'string' && systemPrompt.trim()
-        ? systemPrompt.trim()
-        : typeof customPrompt === 'string' && customPrompt.trim()
-        ? customPrompt.trim()
-        : null;
-    const basePrompt = explicitPrompt || getPrompt(personaId);
+    const basePrompt = getPrompt(personaId);
 
     const cap = tools && Array.isArray(tools) && tools.length > 0 ? 25 : 16;
     const recentHistory = history.slice(-cap);
