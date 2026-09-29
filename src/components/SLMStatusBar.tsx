@@ -68,28 +68,27 @@ export function SLMStatusBar({
             />
             <span className="flex items-center gap-1">
               <Cpu size={12} />
-              <span className="truncate max-w-[120px] sm:max-w-none">
+              <span className="hidden sm:inline">
                 {modelName} (On-Device SLM)
+              </span>
+              <span className="inline sm:hidden truncate max-w-[100px]">
+                {modelName}
               </span>
             </span>
           </div>
 
-          {/* Telemetry Stats in a single line */}
+          {/* Telemetry Stats: On mobile devices, show only tokens/sec and token count info */}
           {telemetry && telemetry.tokenCount > 0 ? (
             <div
               className="text-right font-medium truncate"
               style={{ color: 'var(--accent, #ec4899)' }}
             >
-              {/* Full line on larger screens */}
-              <span className="hidden md:inline">
+              {/* Full details on desktop/tablet */}
+              <span className="hidden sm:inline">
                 {telemetry.tokensPerSec} Tokens/sec, {telemetry.ttftMs}ms TTFT, {telemetry.totalTimeSec}s Total Time, {telemetry.tokenCount} Token Count
               </span>
-              {/* Mid compact on sm */}
-              <span className="hidden sm:inline md:hidden">
-                {telemetry.tokensPerSec} Tokens/sec, {telemetry.totalTimeSec}s Total, {telemetry.tokenCount} Tokens
-              </span>
-              {/* Compact fallback on small screens */}
-              <span className="inline sm:hidden">
+              {/* Mobile devices: only show tokens/sec and token count info */}
+              <span className="inline sm:hidden font-mono font-bold">
                 {telemetry.tokensPerSec} Tokens/sec, {telemetry.tokenCount} Tokens
               </span>
             </div>
@@ -100,7 +99,8 @@ export function SLMStatusBar({
                 className={isGenerating ? 'animate-spin' : 'opacity-60'}
                 style={isGenerating ? { color: 'var(--accent, #ec4899)' } : {}}
               />
-              <span>{isGenerating ? 'Computing on-device...' : 'Ready for local generation'}</span>
+              <span className="hidden sm:inline">{isGenerating ? 'Computing on-device...' : 'Ready for local generation'}</span>
+              <span className="inline sm:hidden">{isGenerating ? 'Computing...' : 'Ready'}</span>
             </div>
           )}
         </div>
