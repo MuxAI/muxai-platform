@@ -18,7 +18,24 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { messages, version } = req.body || {};
+    const { messages, version, serverUrl = null } = req.body || {};
+    const activeBaseUrl = (serverUrl && typeof serverUrl === 'string' && serverUrl.trim())
+      ? serverUrl.trim()
+      : OLLAMA_BASE_URL;
+
+    let activeModel = OLLAMA_MODEL;
+    try {
+      const tagsRes = await fetch(`${activeBaseUrl.replace(/\/+$/, '')}/api/tags`, {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
+      });
+      if (tagsRes.ok) {
+        const data = await tagsRes.json();
+        if (Array.isArray(data?.models) && data.models.length > 0) {
+          activeModel = data.models[0].name || data.models[0].model || activeModel;
+        }
+      }
+    } catch {}
+
     const history = Array.isArray(messages) ? messages : [];
     const ver = version === 'v1.4' ? 'v1.4' : 'v1.6';
     const prompt = getPromptForVersion(ver);
@@ -31,7 +48,7 @@ export default async function handler(req, res) {
     );
 
     const payload = {
-      model: OLLAMA_MODEL,
+      model: activeModel,
       temperature: 0.3,
       max_tokens: 30,
       messages: [
@@ -40,7 +57,7 @@ export default async function handler(req, res) {
       ],
     };
 
-    const endpoint = `${OLLAMA_BASE_URL.replace(/\/$/, '')}/v1/chat/completions`;
+    const endpoint = `${activeBaseUrl.replace(/\/+$/, '')}/v1/chat/completions`;
     const upstream = await fetch(endpoint, {
       method: 'POST',
       headers: { 

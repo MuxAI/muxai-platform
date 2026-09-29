@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   playEntranceSound,
   playExitSound,
@@ -16,31 +16,36 @@ const IMAGES = {
   backHair: 'https://huanmux.github.io/assets/image/serafina/back-hair.png',
 };
 
-const OFFLINE_STEP_3_TEXT = 'Tap or click on that Offline icon on the top-right corner to know how';
+const OFFLINE_MODAL_PROMPT = 'Tap or click on that Offline icon on the top-right corner to know how';
+const OFFLINE_SLM_PROMPT = 'Or switch to a local mini SLM that runs right in your browser!';
 
-function getTimeGreeting() {
-  const hour = new Date().getHours();
-  if (hour >= 5 && hour < 12) return 'Good morning.';
-  if (hour >= 12 && hour < 17) return 'Good afternoon.';
-  if (hour >= 17 && hour < 22) return 'Good evening.';
-  return 'Late night, isn’t it?';
+interface MascotPuppetProps {
+  isOnline?: boolean;
+  onOpenServerModal?: () => void;
+  isBrowserModel?: boolean;
+  onScrollToSLM?: () => void;
 }
 
-export function MascotPuppet({ isOnline = true, onOpenServerModal, isBrowserModel = false }) {
+export function MascotPuppet({
+  isOnline = true,
+  onOpenServerModal,
+  isBrowserModel = false,
+  onScrollToSLM,
+}: MascotPuppetProps) {
   const [dismissed, setDismissed] = useState(false);
-  const [currentMessage, setCurrentMessage] = useState(getTimeGreeting());
+  const [currentMessage, setCurrentMessage] = useState<string>('');
   const [eyeOffset, setEyeOffset] = useState({ x: 0, y: 0 });
   const [bounceKey, setBounceKey] = useState(0);
-  const puppetRef = useRef(null);
+  const puppetRef = useRef<HTMLDivElement>(null);
 
   // Track if server was ever detected as offline in this session
   const serverWasOfflineRef = useRef(!isOnline && !isBrowserModel);
 
-  // Mouse eye-tracking physics (subtle, very tiny movements only: max 2.4px)
+  // Mouse eye-tracking physics
   useEffect(() => {
     if (dismissed) return;
 
-    const handleMouseMove = (e) => {
+    const handleMouseMove = (e: MouseEvent) => {
       if (!puppetRef.current) return;
       const rect = puppetRef.current.getBoundingClientRect();
       const eyeCenterX = rect.left + rect.width * 0.5;
@@ -82,56 +87,60 @@ export function MascotPuppet({ isOnline = true, onOpenServerModal, isBrowserMode
     }
   }, [currentMessage, dismissed]);
 
-  // Dialogue sequencing and automatic exit upon server being online or browser model active
+  // Dialogue sequencing based on server status and SLM suggestion (no greeting in puppet)
   useEffect(() => {
-    let t1, t2, t3, tExit;
+    let t1: any;
+    let t2: any;
+    let t3: any;
+    let t4: any;
+    let tExit: any;
     const effectiveOnline = isBrowserModel ? true : isOnline;
 
     if (!effectiveOnline) {
       serverWasOfflineRef.current = true;
-      setCurrentMessage(getTimeGreeting());
 
-      // 1. Offline detection warning
+      // 1. Initial detection of offline status
+      setCurrentMessage('Uh oh, looks like the default server is offline right now.');
+
+      // 2. Suggest turning on own server
       t1 = setTimeout(() => {
-        setCurrentMessage('Uh oh, looks like the default server is offline right now.');
-      }, 2500);
-
-      // 2. Advice to turn on own server
-      t2 = setTimeout(() => {
         setCurrentMessage('You can turn on your own server if you want.');
-      }, 6500);
+      }, 3000);
 
-      // 3. Instruction to click the offline icon
+      // 3. Interactive step to click offline icon
+      t2 = setTimeout(() => {
+        setCurrentMessage(OFFLINE_MODAL_PROMPT);
+      }, 6200);
+
+      // 4. Wait 5 seconds during the interactive server message, then suggest switching to a mini model
       t3 = setTimeout(() => {
-        setCurrentMessage(OFFLINE_STEP_3_TEXT);
-      }, 10500);
+        setCurrentMessage(OFFLINE_SLM_PROMPT);
+      }, 11200); // 6200 + 5000ms = 11200ms
     } else {
       // Server is ONLINE or Browser Model is active
       if (serverWasOfflineRef.current) {
-        // Was previously offline (after detecting offline or server selection advice)
-        setCurrentMessage(isBrowserModel ? 'Running directly in your browser!' : 'Ah, the server is online now!');
+        setCurrentMessage(
+          isBrowserModel ? 'Running directly in your browser!' : 'Ah, the server is online now!'
+        );
         t1 = setTimeout(() => {
           setCurrentMessage('Talk to me by typing messages here');
-          // Wait a few seconds after the last message is sent, then exit
           tExit = setTimeout(() => {
             playExitSound();
             setDismissed(true);
           }, 3800);
         }, 2800);
       } else {
-        // Online at moment of page visit / reload:
-        setCurrentMessage(getTimeGreeting());
+        // Online from the start
+        setCurrentMessage(
+          isBrowserModel ? 'Running directly in your browser!' : 'Ah, the server is online now!'
+        );
         t1 = setTimeout(() => {
-          setCurrentMessage(isBrowserModel ? 'Running directly in your browser!' : 'Ah, the server is online now!');
-          t2 = setTimeout(() => {
-            setCurrentMessage('Talk to me by typing messages here');
-            // Wait a few seconds after the last message is sent, then exit
-            tExit = setTimeout(() => {
-              playExitSound();
-              setDismissed(true);
-            }, 3800);
-          }, 2800);
-        }, 2000);
+          setCurrentMessage('Talk to me by typing messages here');
+          tExit = setTimeout(() => {
+            playExitSound();
+            setDismissed(true);
+          }, 3800);
+        }, 2800);
       }
     }
 
@@ -139,22 +148,26 @@ export function MascotPuppet({ isOnline = true, onOpenServerModal, isBrowserMode
       clearTimeout(t1);
       clearTimeout(t2);
       clearTimeout(t3);
+      clearTimeout(t4);
       clearTimeout(tExit);
     };
   }, [isOnline, isBrowserModel]);
 
   const handlePuppetClick = () => {
-    // Play cute bouncy sound & animation, do NOT dismiss her
     playTapSound();
     setBounceKey((k) => k + 1);
   };
 
-  const isOfflineHelpActive = currentMessage === OFFLINE_STEP_3_TEXT;
+  const isServerModalAction = currentMessage === OFFLINE_MODAL_PROMPT;
+  const isSLMAction = currentMessage === OFFLINE_SLM_PROMPT;
 
   const handleThoughtBubbleClick = () => {
-    if (isOfflineHelpActive && onOpenServerModal) {
+    if (isServerModalAction && onOpenServerModal) {
       playBubbleClickSound();
       onOpenServerModal();
+    } else if (isSLMAction && onScrollToSLM) {
+      playBubbleClickSound();
+      onScrollToSLM();
     }
   };
 
@@ -206,7 +219,7 @@ export function MascotPuppet({ isOnline = true, onOpenServerModal, isBrowserMode
             title="Serafina"
             className="group relative w-16 h-16 sm:w-20 sm:h-20 shrink-0 cursor-pointer filter drop-shadow-md z-0"
           >
-            {/* Layer 5 (furthest / back): Back Hair */}
+            {/* Layer 5: Back Hair */}
             <img
               src={IMAGES.backHair}
               alt="Back Hair"
@@ -233,7 +246,7 @@ export function MascotPuppet({ isOnline = true, onOpenServerModal, isBrowserMode
               decoding="sync"
             />
 
-            {/* Layer 2: Eyes Irises (physics tracking mouse cursor) */}
+            {/* Layer 2: Eyes Irises */}
             <img
               src={IMAGES.eyes}
               alt="Eyes"
@@ -247,7 +260,7 @@ export function MascotPuppet({ isOnline = true, onOpenServerModal, isBrowserMode
               decoding="sync"
             />
 
-            {/* Layer 1 (nearest / front): Front Hair */}
+            {/* Layer 1: Front Hair */}
             <img
               src={IMAGES.frontHair}
               alt="Front Hair"
@@ -270,11 +283,19 @@ export function MascotPuppet({ isOnline = true, onOpenServerModal, isBrowserMode
               layout
               onClick={handleThoughtBubbleClick}
               className={`themed-ai-bubble px-3 py-2 sm:px-3.5 sm:py-2 rounded-2xl rounded-bl-sm border shadow-lg backdrop-blur-md text-xs sm:text-sm font-medium max-w-[200px] sm:max-w-[270px] leading-snug transition-all duration-200 ${
-                isOfflineHelpActive
+                isServerModalAction
                   ? 'cursor-pointer hover:border-amber-500/60 hover:shadow-amber-500/10 active:scale-98 ring-1 ring-amber-500/30'
+                  : isSLMAction
+                  ? 'cursor-pointer hover:border-emerald-500/60 hover:shadow-emerald-500/10 active:scale-98 ring-1 ring-emerald-500/40 text-emerald-400 font-semibold'
                   : 'cursor-default'
               }`}
-              title={isOfflineHelpActive ? 'Click to configure server' : undefined}
+              title={
+                isServerModalAction
+                  ? 'Click to configure server'
+                  : isSLMAction
+                  ? 'Click to view on-device SLM models'
+                  : undefined
+              }
             >
               <AnimatePresence mode="wait">
                 <motion.div

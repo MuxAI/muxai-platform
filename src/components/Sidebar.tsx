@@ -27,6 +27,8 @@ interface SidebarProps {
   open: boolean;
   onClose: () => void;
   isOnline: boolean;
+  onStartAIDuel?: () => void;
+  onStartChess?: () => void;
 }
 
 export function Sidebar({
@@ -39,6 +41,8 @@ export function Sidebar({
   open,
   onClose,
   isOnline,
+  onStartAIDuel,
+  onStartChess,
 }: SidebarProps) {
   const [search, setSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);

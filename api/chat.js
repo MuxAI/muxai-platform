@@ -95,10 +95,23 @@ export default async function handler(req, res) {
       serverUrl = null // 1. Extract serverUrl from request body
     } = req.body || {};
 
-    // 2. Resolve active base URL dynamically
+    // 2. Resolve active base URL and discover available model dynamically
     const activeBaseUrl = (serverUrl && typeof serverUrl === 'string' && serverUrl.trim())
       ? serverUrl.trim()
       : OLLAMA_BASE_URL;
+
+    let activeModel = OLLAMA_MODEL;
+    try {
+      const tagsRes = await fetch(`${activeBaseUrl.replace(/\/+$/, '')}/api/tags`, {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
+      });
+      if (tagsRes.ok) {
+        const data = await tagsRes.json();
+        if (Array.isArray(data?.models) && data.models.length > 0) {
+          activeModel = data.models[0].name || data.models[0].model || activeModel;
+        }
+      }
+    } catch {}
 
     const history = Array.isArray(messages) ? messages : [];
     const explicitPrompt =
@@ -124,7 +137,7 @@ export default async function handler(req, res) {
     }
 
     const payload = {
-      model: OLLAMA_MODEL,
+      model: activeModel,
       temperature: temperature,
       max_tokens: 1024,
       messages: [

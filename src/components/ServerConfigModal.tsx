@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Server, Download, X, Check, Globe } from 'lucide-react';
+import { Server, Download, X, Check, Globe, Play } from 'lucide-react';
 import { getServerConfig, saveServerConfig } from '../lib/storage';
 
 interface ServerConfigModalProps {
@@ -121,17 +121,28 @@ export function ServerConfigModal({ isOpen, onClose, onConfigSaved }: ServerConf
             </label>
           </div>
 
-          {/* Download IPYNB Link */}
+          {/* Host Info & Tutorial / IPYNB Links */}
           <div className="mb-6 pt-3 border-t border-inherit text-center">
-            <p className="text-xs opacity-75 mb-1">Want to host the server on your own?</p>
-            <a
-              href="/muxai_backend_runner.ipynb"
-              download
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-pink-400 hover:text-pink-300 hover:underline"
-            >
-              <Download size={13} />
-              Download this ipynb file.
-            </a>
+            <p className="text-xs opacity-75 mb-2.5">Want to host the server on your own?</p>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <a
+                href="https://www.youtube.com/watch?v=uDJnu2EEzRc"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600/15 hover:bg-red-600/25 border border-red-500/30 text-xs font-bold text-red-400 hover:text-red-300 transition-all shadow-sm active:scale-95"
+              >
+                <Play size={12} className="fill-current" />
+                <span>Watch Tutorial</span>
+              </a>
+              <a
+                href="/muxai_backend_runner.ipynb"
+                download
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-inherit text-xs font-bold text-pink-400 hover:text-pink-300 hover:underline transition-all shadow-sm active:scale-95"
+              >
+                <Download size={13} />
+                <span>Download IPYNB</span>
+              </a>
+            </div>
           </div>
 
           {/* Action Buttons */}

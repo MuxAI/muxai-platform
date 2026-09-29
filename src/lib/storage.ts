@@ -263,10 +263,18 @@ export interface MuxAIExportPackage {
   };
 }
 
-export function exportAllData(): { jsonString: string; filename: string } {
-  const conversations = loadConversations();
-  const customPersonas = loadCustomPersonas();
-  const customThemes = loadCustomThemes();
+export interface DataSelectionFilter {
+  conversations: boolean;
+  personas: boolean;
+  themes: boolean;
+}
+
+export function exportSelectedData(
+  filter: DataSelectionFilter = { conversations: true, personas: true, themes: true }
+): { jsonString: string; filename: string } {
+  const conversations = filter.conversations ? loadConversations() : [];
+  const customPersonas = filter.personas ? loadCustomPersonas() : [];
+  const customThemes = filter.themes ? loadCustomThemes() : [];
   const activeTheme = getTheme();
   const graphicsQuality = getGraphicsQuality();
   const options = getSavedOptions();
@@ -293,6 +301,10 @@ export function exportAllData(): { jsonString: string; filename: string } {
   const filename = `muxai-backup-${dateStr}.json`;
 
   return { jsonString, filename };
+}
+
+export function exportAllData(): { jsonString: string; filename: string } {
+  return exportSelectedData({ conversations: true, personas: true, themes: true });
 }
 
 // Conflict Analysis for Data Import

@@ -65,7 +65,7 @@ export interface Persona {
   id: string;
   name: string;
   desc: string;
-  tag: string;
+  tag?: string;
   role: string;
   badgeColor?: string;
   greeting?: string;
@@ -75,6 +75,11 @@ export interface Persona {
   customLogo?: string;
   customPortrait?: string;
   temperature?: number;
+  isSLM?: boolean;
+  slmModelId?: string;
+  slmModelName?: string;
+  slmSize?: string;
+  slmSizeBytes?: number;
 }
 
 export interface ThemeDefinition {
@@ -90,6 +95,7 @@ export interface ModelOptions {
   jsonMode: boolean;
   toolCalling: boolean;
   temperature: number;
+  maxTokens?: number;
   customSystemPrompt?: string;
 }
 

@@ -44,6 +44,22 @@ import { AIToAIModal } from './components/AIToAIModal';
 import { ChessSetupModal } from './components/ChessSetupModal';
 import { ChessBoardDisplay } from './components/ChessBoardDisplay';
 import { ChessMoveInputPanel } from './components/ChessMoveInputPanel';
+import { MascotPuppet } from './components/MascotPuppet';
+import { SLMStatusBar } from './components/SLMStatusBar';
+import { SLMConfirmModal } from './components/SLMConfirmModal';
+import { SLMManageModal } from './components/SLMManageModal';
+import { DataTransferModal } from './components/DataTransferModal';
+import {
+  isSLMDownloaded,
+  getSLMSpecByPersonaId,
+  SLMModelSpec,
+} from './lib/slmStorage';
+import {
+  downloadSLMWeights,
+  generateSLMReply,
+  SLMTelemetryData,
+  DownloadProgressInfo,
+} from './lib/slmEngine';
 import {
   createInitialGameState,
   makeMove,
@@ -86,6 +102,8 @@ import {
   setGraphicsQuality,
   GraphicsQuality,
   exportAllData,
+  exportSelectedData,
+  DataSelectionFilter,
   parseAndDetectImportConflicts,
   applyImportedData,
   MuxAIExportPackage,
@@ -150,6 +168,14 @@ const QUICK_STARTERS: Record<string, string[]> = {
   ],
 };
 
+function getTimeGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return 'Good morning';
+  if (hour >= 12 && hour < 17) return 'Good afternoon';
+  if (hour >= 17 && hour < 22) return 'Good evening';
+  return 'Late night, huh?';
+}
+
 export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -186,6 +212,11 @@ export default function App() {
   const [pendingImportPackage, setPendingImportPackage] = useState<MuxAIExportPackage | null>(null);
   const [isServerModalOpen, setIsServerModalOpen] = useState(false);
 
+  // Data Transfer (Export / Import Selective Menu) states
+  const [isDataTransferModalOpen, setIsDataTransferModalOpen] = useState(false);
+  const [dataTransferMode, setDataTransferMode] = useState<'export' | 'import'>('export');
+  const [parsedImportPackage, setParsedImportPackage] = useState<MuxAIExportPackage | null>(null);
+
   const [rateInfo, setRateInfo] = useState<RateInfo>({
     blocked: false,
     resetIn: 0,
@@ -204,8 +235,21 @@ export default function App() {
     jsonMode: false,
     toolCalling: false,
     temperature: 0.6,
+    maxTokens: 512,
   });
   const [toolProgress, setToolProgress] = useState<ToolProgress | null>(null);
+
+  // SLM on-device states
+  const [slmConfirmSpec, setSlmConfirmSpec] = useState<SLMModelSpec | null>(null);
+  const [isSLMConfirmOpen, setIsSLMConfirmOpen] = useState(false);
+  const [slmManageSpec, setSlmManageSpec] = useState<SLMModelSpec | null>(null);
+  const [isSLMManageOpen, setIsSLMManageOpen] = useState(false);
+  const [slmDownloading, setSlmDownloading] = useState(false);
+  const [slmDownloadProgress, setSlmDownloadProgress] = useState<DownloadProgressInfo | null>(null);
+  const [slmTelemetry, setSlmTelemetry] = useState<SLMTelemetryData | null>(null);
+  const [isSLMGenerating, setIsSLMGenerating] = useState(false);
+  const [pendingSelectSLMPersonaId, setPendingSelectSLMPersonaId] = useState<string | null>(null);
+  const [slmRefreshKey, setSlmRefreshKey] = useState(0);
 
   // Custom Persona & Theme Modals state
   const [customPersonas, setCustomPersonas] = useState<Persona[]>(() => loadCustomPersonas());
@@ -447,6 +491,87 @@ export default function App() {
     }
   };
 
+  const applyPersonaSelection = (id: string) => {
+    setSelectedPersona(id);
+    if (activeId) {
+      updateConversation(activeId, (c) => ({ ...c, personaId: id }));
+      setConversations(loadConversations());
+    }
+  };
+
+  // SLM Persona selection: check if downloaded, otherwise prompt confirm modal
+  const handleSelectPersona = (id: string) => {
+    const targetPersona = getPersonaById(id);
+    if (targetPersona?.isSLM) {
+      const modelId = targetPersona.slmModelId || id;
+      const downloaded = isSLMDownloaded(modelId);
+      if (!downloaded) {
+        const spec = getSLMSpecByPersonaId(id);
+        if (spec) {
+          setPendingSelectSLMPersonaId(id);
+          setSlmConfirmSpec(spec);
+          setIsSLMConfirmOpen(true);
+          return;
+        }
+      }
+    }
+
+    applyPersonaSelection(id);
+  };
+
+  // Confirm and start downloading SLM weights
+  const handleConfirmSLMDownload = async () => {
+    if (!slmConfirmSpec) return;
+    const personaId = pendingSelectSLMPersonaId || slmConfirmSpec.personaId;
+    applyPersonaSelection(personaId);
+    setIsSLMConfirmOpen(false);
+
+    setSlmDownloading(true);
+    setSlmDownloadProgress({
+      percent: 0,
+      downloadedMB: 0,
+      totalMB: slmConfirmSpec.sizeMB,
+      done: false,
+    });
+
+    try {
+      await downloadSLMWeights(slmConfirmSpec.modelId, slmConfirmSpec.sizeMB, (p) => {
+        setSlmDownloadProgress(p);
+      });
+      setSlmRefreshKey((k) => k + 1);
+      showToast(`${slmConfirmSpec.name} downloaded! Running on-device in browser.`);
+    } catch (err: any) {
+      showToast(`Failed to download SLM: ${err?.message || err}`);
+    } finally {
+      setSlmDownloading(false);
+      setSlmDownloadProgress(null);
+    }
+  };
+
+  const handleOpenSLMManage = (spec: SLMModelSpec) => {
+    setSlmManageSpec(spec);
+    setIsSLMManageOpen(true);
+  };
+
+  // Mascot Puppet: scroll to SLM section in companion grid
+  const handleScrollToSLM = () => {
+    if (messages.length > 0) {
+      handleNew();
+    }
+    setTimeout(() => {
+      const slmCard =
+        document.getElementById('slm-card-Sera11_mini') ||
+        document.getElementById('persona-deck-section');
+      if (slmCard) {
+        slmCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        slmCard.classList.add('ring-4', 'ring-emerald-400');
+        setTimeout(() => {
+          slmCard.classList.remove('ring-4', 'ring-emerald-400');
+        }, 2200);
+      }
+    }, 150);
+  };
+
   const handleDeleteCustomPersona = (id: string) => {
     removeCustomPersona(id);
     setCustomPersonas(loadCustomPersonas());
@@ -502,10 +627,16 @@ export default function App() {
     setGraphicsQualityState(q);
   };
 
-  // Export Data Handler
+  // Export Data Handler: Open selective export menu
   const handleExportData = () => {
+    setDataTransferMode('export');
+    setIsDataTransferModalOpen(true);
+  };
+
+  // Confirm Export with chosen categories
+  const handleConfirmExport = (filter: DataSelectionFilter) => {
     try {
-      const { jsonString, filename } = exportAllData();
+      const { jsonString, filename } = exportSelectedData(filter);
       const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -515,14 +646,14 @@ export default function App() {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      showToast('All workspace data exported successfully!');
+      showToast('Selected workspace data exported successfully!');
       trackEvent('data_exported');
     } catch (err: any) {
       setError(`Failed to export data: ${err?.message || err}`);
     }
   };
 
-  // Import Data Handler
+  // Import Data Handler: Parse file and open selective import menu
   const handleImportDataFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -534,21 +665,94 @@ export default function App() {
           return;
         }
 
-        if (result.conflicts.length > 0) {
-          setPendingImportPackage(result.dataPackage);
-          setImportConflicts(result.conflicts);
-          setIsConflictModalOpen(true);
-        } else {
-          applyImportedData(result.dataPackage);
-          reloadAllStorageData();
-          showToast('Data imported and merged successfully!');
-          trackEvent('data_imported');
-        }
+        setParsedImportPackage(result.dataPackage);
+        setDataTransferMode('import');
+        setIsDataTransferModalOpen(true);
       } catch (err: any) {
         setError(`Failed to process backup file: ${err?.message || err}`);
       }
     };
     reader.readAsText(file);
+  };
+
+  // Confirm Import with chosen categories
+  const handleConfirmImport = (filter: DataSelectionFilter, pkg: MuxAIExportPackage) => {
+    // Filter incoming package according to user selection
+    const filteredData = {
+      ...pkg.data,
+      conversations: filter.conversations ? pkg.data.conversations : [],
+      customPersonas: filter.personas ? pkg.data.customPersonas : [],
+      customThemes: filter.themes ? pkg.data.customThemes : [],
+    };
+    const filteredPkg: MuxAIExportPackage = {
+      ...pkg,
+      data: filteredData,
+    };
+
+    // Detect conflicts only for selected categories
+    const existingConvs = loadConversations();
+    const existingPersonas = loadCustomPersonas();
+    const existingThemes = loadCustomThemes();
+    const conflicts: ImportConflict[] = [];
+
+    if (filter.conversations && Array.isArray(filteredData.conversations)) {
+      for (const inConv of filteredData.conversations) {
+        const exist = existingConvs.find((c) => c.id === inConv.id);
+        if (exist) {
+          conflicts.push({
+            type: 'conversation',
+            id: inConv.id,
+            name: inConv.title,
+            details: `Chat "${inConv.title}" already exists (${exist.messages?.length || 0} messages).`,
+            existingItem: exist,
+            incomingItem: inConv,
+          });
+        }
+      }
+    }
+
+    if (filter.personas && Array.isArray(filteredData.customPersonas)) {
+      for (const inPersona of filteredData.customPersonas) {
+        const exist = existingPersonas.find((p) => p.id === inPersona.id);
+        if (exist) {
+          conflicts.push({
+            type: 'persona',
+            id: inPersona.id,
+            name: inPersona.name,
+            details: `Custom persona "${inPersona.name}" already exists.`,
+            existingItem: exist,
+            incomingItem: inPersona,
+          });
+        }
+      }
+    }
+
+    if (filter.themes && Array.isArray(filteredData.customThemes)) {
+      for (const inTheme of filteredData.customThemes) {
+        const exist = existingThemes.find((t) => t.id === inTheme.id);
+        if (exist) {
+          conflicts.push({
+            type: 'theme',
+            id: inTheme.id,
+            name: inTheme.name,
+            details: `Custom theme "${inTheme.name}" already exists.`,
+            existingItem: exist,
+            incomingItem: inTheme,
+          });
+        }
+      }
+    }
+
+    if (conflicts.length > 0) {
+      setPendingImportPackage(filteredPkg);
+      setImportConflicts(conflicts);
+      setIsConflictModalOpen(true);
+    } else {
+      applyImportedData(filteredPkg);
+      reloadAllStorageData();
+      showToast('Selected data imported and merged successfully!');
+      trackEvent('data_imported');
+    }
   };
 
   // Resolved Conflicts Import Handler
@@ -1008,19 +1212,86 @@ export default function App() {
 
   // Retry a user message
   const handleRetry = async (msgIndex: number, userMessage: Message) => {
-    if (loading || !isOnline) return;
-
     let convId = activeId;
     if (!convId) return;
+
+    const activeConv = conversations.find((c) => c.id === convId);
+    const personaToUse = activeConv?.personaId || selectedPersona;
+    const activePersonaObj = getPersonaObject(personaToUse);
+
+    if (loading || (!isOnline && !activePersonaObj?.isSLM)) return;
 
     const trimmedMsgs = messages.slice(0, msgIndex + 1);
     setMessages(trimmedMsgs);
     persistMessages(convId, trimmedMsgs);
 
-    const activeConv = conversations.find((c) => c.id === convId);
-    const personaToUse = activeConv?.personaId || selectedPersona;
-    const activePersonaObj = getPersonaObject(personaToUse);
     const personaPrompt = getSystemPromptForPersona(personaToUse);
+
+    if (activePersonaObj?.isSLM) {
+      setIsSLMGenerating(true);
+      setError('');
+
+      const slmModelId = activePersonaObj.slmModelId || personaToUse;
+      const conversationHistory: Message[] = trimmedMsgs.map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
+      const initialAssistantMsg: Message = {
+        role: 'assistant',
+        personaId: personaToUse,
+        content: '',
+      };
+      setMessages([...trimmedMsgs, initialAssistantMsg]);
+
+      try {
+        const { text: finalText, telemetry } = await generateSLMReply(
+          userMessage.content,
+          conversationHistory,
+          slmModelId,
+          modelOptions.maxTokens ?? 512,
+          modelOptions.temperature ?? 0.6,
+          (_token, accumulated, liveTelemetry) => {
+            setSlmTelemetry(liveTelemetry);
+            setMessages((prev) => {
+              const last = prev[prev.length - 1];
+              if (last && last.role === 'assistant') {
+                const copy = [...prev];
+                copy[copy.length - 1] = {
+                  ...last,
+                  role: 'assistant',
+                  personaId: personaToUse,
+                  content: accumulated,
+                };
+                return copy;
+              }
+              return [
+                ...prev,
+                {
+                  role: 'assistant',
+                  personaId: personaToUse,
+                  content: accumulated,
+                },
+              ];
+            });
+          }
+        );
+
+        setSlmTelemetry(telemetry);
+        const finalMsgs: Message[] = [
+          ...trimmedMsgs,
+          { role: 'assistant', personaId: personaToUse, content: finalText },
+        ];
+        setMessages(finalMsgs);
+        persistMessages(convId, finalMsgs);
+        recordMessage();
+      } catch (err: any) {
+        setError(err?.message || 'Error running on-device SLM');
+      } finally {
+        setIsSLMGenerating(false);
+      }
+      return;
+    }
 
     setLoading(true);
     setError('');
@@ -1229,6 +1500,76 @@ export default function App() {
 
     const userMsg: Message = { role: 'user', content: displayText, attachments };
     const newMsgs = [...messages, userMsg];
+
+    // If active persona is an on-device SLM, run browser-based inference with live telemetry
+    if (activePersonaObj?.isSLM) {
+      persistMessages(convId, newMsgs);
+      setIsSLMGenerating(true);
+      setError('');
+
+      const slmModelId = activePersonaObj.slmModelId || personaToUse;
+      const conversationHistory: Message[] = [
+        ...messages,
+        { role: 'user', content: fullContextContent },
+      ];
+
+      const initialAssistantMsg: Message = {
+        role: 'assistant',
+        personaId: personaToUse,
+        content: '',
+      };
+      setMessages([...newMsgs, initialAssistantMsg]);
+
+      try {
+        const { text: finalText, telemetry } = await generateSLMReply(
+          fullContextContent,
+          conversationHistory,
+          slmModelId,
+          modelOptions.maxTokens ?? 512,
+          modelOptions.temperature ?? 0.6,
+          (_token, accumulated, liveTelemetry) => {
+            setSlmTelemetry(liveTelemetry);
+            setMessages((prev) => {
+              const last = prev[prev.length - 1];
+              if (last && last.role === 'assistant') {
+                const copy = [...prev];
+                copy[copy.length - 1] = {
+                  ...last,
+                  role: 'assistant',
+                  personaId: personaToUse,
+                  content: accumulated,
+                };
+                return copy;
+              }
+              return [
+                ...prev,
+                {
+                  role: 'assistant',
+                  personaId: personaToUse,
+                  content: accumulated,
+                },
+              ];
+            });
+          }
+        );
+
+        setSlmTelemetry(telemetry);
+        const finalMsgs: Message[] = [
+          ...newMsgs,
+          { role: 'assistant', personaId: personaToUse, content: finalText },
+        ];
+        setMessages(finalMsgs);
+        persistMessages(convId, finalMsgs);
+        recordMessage();
+        maybeGenerateTitle(convId, finalMsgs, personaToUse);
+      } catch (err: any) {
+        setError(err?.message || 'Error running on-device SLM.');
+      } finally {
+        setIsSLMGenerating(false);
+      }
+      return;
+    }
+
     setMessages(newMsgs);
     persistMessages(convId, newMsgs);
 
@@ -1441,9 +1782,11 @@ export default function App() {
                   <span className="font-extrabold text-sm sm:text-base tracking-tight">
                     {activeConv?.mode === 'ai_duel' ? 'AI Dialogue Arena' : activeConv?.mode === 'chess' ? 'Chess Arena' : currentPersonaInfo.name}
                   </span>
-                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full themed-chip border">
-                    {activeConv?.mode === 'ai_duel' ? 'DUAL' : activeConv?.mode === 'chess' ? 'CHESS' : currentPersonaInfo.tag}
-                  </span>
+                  {(activeConv?.mode === 'ai_duel' || activeConv?.mode === 'chess') && (
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full themed-chip border">
+                      {activeConv.mode === 'ai_duel' ? 'DUAL' : 'CHESS'}
+                    </span>
+                  )}
                 </div>
                 <div className="text-[10px] opacity-60 hidden sm:block truncate max-w-xs">
                   {activeConv?.mode === 'ai_duel'
@@ -1560,24 +1903,18 @@ export default function App() {
                 </motion.div>
 
                 <h2 className="themed-welcome-text text-2xl sm:text-3xl font-extrabold tracking-tight mb-1.5">
-                  Welcome to MuxAI
+                  {getTimeGreeting()}
                 </h2>
                 <p className="themed-welcome-sub text-xs sm:text-sm mb-6 max-w-md">
-                  Pick your companion persona below or create a custom one to begin chatting!
+                  Select or create a persona and begin chatting!
                 </p>
 
                 {/* Persona Selector Deck */}
-                <div className="w-full mb-6">
+                <div id="persona-deck-section" className="w-full mb-6">
                   <PersonaSelectorDeck
                     selectedPersona={selectedPersona}
                     personas={allPersonas}
-                    onSelect={(id) => {
-                      setSelectedPersona(id);
-                      if (activeId) {
-                        updateConversation(activeId, (c) => ({ ...c, personaId: id }));
-                        setConversations(loadConversations());
-                      }
-                    }}
+                    onSelect={handleSelectPersona}
                     onOpenCreatePersona={() => {
                       setPersonaToEdit(null);
                       setIsPersonaModalOpen(true);
@@ -1587,11 +1924,13 @@ export default function App() {
                       setIsPersonaModalOpen(true);
                     }}
                     onDeletePersona={handleDeleteCustomPersona}
+                    onOpenSLMManage={handleOpenSLMManage}
+                    slmRefreshTrigger={slmRefreshKey}
                   />
                 </div>
 
-                {/* Quick Prompt Starters */}
-                {QUICK_STARTERS[selectedPersona] && QUICK_STARTERS[selectedPersona].length > 0 && (
+                {/* Quick Prompt Starters (Hidden for custom and SLM models) */}
+                {!currentPersonaInfo.isSLM && QUICK_STARTERS[selectedPersona] && QUICK_STARTERS[selectedPersona].length > 0 && (
                   <div className="w-full text-left mt-2">
                     <div className="text-xs font-bold uppercase tracking-wider opacity-60 mb-2.5 px-1">
                       Try Asking {currentPersonaInfo.name}:
@@ -1700,13 +2039,57 @@ export default function App() {
           <ChatInput
             onSend={handleSend}
             onGenerateImage={handleGenerateImage}
-            disabled={loading || rateInfo.blocked}
-            isOnline={isOnline}
+            disabled={loading || isSLMGenerating || rateInfo.blocked}
+            isOnline={isOnline || Boolean(currentPersonaInfo.isSLM)}
             options={modelOptions}
             onOptionsChange={setModelOptions}
+            slmStatusBar={
+              currentPersonaInfo.isSLM ? (
+                <SLMStatusBar
+                  modelName={currentPersonaInfo.slmModelName || currentPersonaInfo.name}
+                  isDownloading={slmDownloading}
+                  downloadProgress={slmDownloadProgress}
+                  telemetry={slmTelemetry}
+                  isGenerating={isSLMGenerating}
+                />
+              ) : null
+            }
+            mascotSlot={
+              <MascotPuppet
+                isOnline={isOnline}
+                isBrowserModel={Boolean(currentPersonaInfo.isSLM)}
+                onOpenServerModal={() => setIsServerModalOpen(true)}
+                onScrollToSLM={handleScrollToSLM}
+              />
+            }
           />
         )}
       </div>
+
+      {/* SLM Confirm & On-Device Download Modal */}
+      <SLMConfirmModal
+        isOpen={isSLMConfirmOpen}
+        onClose={() => {
+          setIsSLMConfirmOpen(false);
+          setPendingSelectSLMPersonaId(null);
+        }}
+        onConfirm={handleConfirmSLMDownload}
+        modelSpec={slmConfirmSpec}
+      />
+
+      {/* SLM Model Manager / Delete Modal */}
+      <SLMManageModal
+        isOpen={isSLMManageOpen}
+        onClose={() => {
+          setIsSLMManageOpen(false);
+          setSlmManageSpec(null);
+        }}
+        modelSpec={slmManageSpec}
+        onModelDeleted={() => {
+          setSlmRefreshKey((k) => k + 1);
+          showToast('SLM model deleted from browser storage.');
+        }}
+      />
 
       {/* First-Visit Welcome & Legal Review Modal */}
       <WelcomeReviewModal
@@ -1787,6 +2170,22 @@ export default function App() {
           onResolveAndImport={handleResolveAndImport}
         />
       )}
+
+      {/* Selective Data Transfer (Export / Import) Modal */}
+      <DataTransferModal
+        isOpen={isDataTransferModalOpen}
+        mode={dataTransferMode}
+        onClose={() => {
+          setIsDataTransferModalOpen(false);
+          setParsedImportPackage(null);
+        }}
+        onConfirmExport={handleConfirmExport}
+        onConfirmImport={handleConfirmImport}
+        importPackage={parsedImportPackage}
+        conversationCount={conversations.length}
+        personaCount={customPersonas.length}
+        themeCount={customThemes.length}
+      />
 
       {/* Floating Toast Notification */}
       <AnimatePresence>

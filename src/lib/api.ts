@@ -17,12 +17,12 @@ export async function fetchAIReply(
     tools?: any;
     temperature?: number;
     systemPrompt?: string;
-    serverUrl: string;
+    serverUrl?: string;
   } = {}
 ) {
   const { jsonMode = false, tools = null, temperature = 0.6, systemPrompt } = options;
 
-  const serverUrl = getActiveServerUrl();
+  const serverUrl = options.serverUrl || getActiveServerUrl();
 
   const res = await fetch('/api/chat', {
     method: 'POST',
@@ -48,10 +48,11 @@ export async function fetchAIReply(
 
 export async function generateTitle(messages: Message[], personaId: string | null = null): Promise<string | null> {
   try {
+    const serverUrl = getActiveServerUrl();
     const res = await fetch('/api/generate-title', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages, personaId: personaId || undefined }),
+      body: JSON.stringify({ messages, personaId: personaId || undefined, serverUrl }),
     });
     if (!res.ok) return null;
     const data = await res.json().catch(() => ({}));
@@ -62,10 +63,11 @@ export async function generateTitle(messages: Message[], personaId: string | nul
 }
 
 export async function analyzeImageWithVision(prompt: string, images: string[], model?: string): Promise<string> {
+  const serverUrl = getActiveServerUrl();
   const res = await fetch('/api/vision', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt, images, model }),
+    body: JSON.stringify({ prompt, images, model, serverUrl }),
   });
 
   if (!res.ok) {
@@ -81,45 +83,45 @@ export async function analyzeImageWithVision(prompt: string, images: string[], m
 export async function checkServerPing(): Promise<{ online: boolean; model?: string }> {
   try {
     const config = getServerConfig();
+    const serverUrl = getActiveServerUrl();
 
-    if (config.mode === 'custom' && config.customUrl) {
-      const baseUrl = config.customUrl.replace(/\/+$/, '');
+    // Query server status & dynamically discovered model via server URL API
+    const pingEndpoint = serverUrl
+      ? `/api/ping?serverUrl=${encodeURIComponent(serverUrl)}`
+      : '/api/ping';
 
-      // 1. Primary check: Hit Ollama / standard LLM tags endpoint to get active model
-      try {
-        const res = await fetch(`${baseUrl}/api/tags`, {
-          method: 'GET',
-          headers: {
-            'ngrok-skip-browser-warning': 'true',
-          },
-        });
-
-        if (res.ok) {
-          const data = await res.json().catch(() => null);
-          const activeModel = data?.models?.[0]?.name || 'Custom Endpoint';
-          return { online: true, model: activeModel };
-        }
-      } catch {
-        // Fall through to basic root ping if CORS/preflight fails on /api/tags
+    const res = await fetch(pingEndpoint);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.status === 'online') {
+        return { online: true, model: data.model };
       }
-
-      // 2. Fallback check: Hit root endpoint for custom proxies or non-Ollama servers
-      const rootRes = await fetch(`${baseUrl}/`, {
-        method: 'GET',
-      });
-
-      if (rootRes.ok) {
-        return { online: true, model: 'Custom Endpoint' };
-      }
-
-      return { online: false };
     }
 
-    // Default internal API ping route
-    const res = await fetch('/api/ping');
-    if (!res.ok) return { online: false };
-    const data = await res.json();
-    return { online: data.status === 'online', model: data.model };
+    // Direct browser fetch fallback if proxy route returned offline for custom URL
+    if (config.mode === 'custom' && config.customUrl) {
+      const baseUrl = config.customUrl.replace(/\/+$/, '');
+      try {
+        const directRes = await fetch(`${baseUrl}/api/tags`, {
+          method: 'GET',
+          headers: { 'ngrok-skip-browser-warning': 'true' },
+        });
+        if (directRes.ok) {
+          const data = await directRes.json().catch(() => null);
+          const activeModel = data?.models?.[0]?.name || 'Ollama Server';
+          return { online: true, model: activeModel };
+        }
+      } catch {}
+
+      try {
+        const rootRes = await fetch(`${baseUrl}/`, { method: 'GET' });
+        if (rootRes.ok) {
+          return { online: true, model: 'Custom Endpoint' };
+        }
+      } catch {}
+    }
+
+    return { online: false };
   } catch {
     return { online: false };
   }

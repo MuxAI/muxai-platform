@@ -26,18 +26,6 @@ interface CustomPersonaModalProps {
   personaToEdit?: Persona | null;
 }
 
-const COLOR_PRESETS = [
-  '#ec4899', // Pink
-  '#8b5cf6', // Violet
-  '#3b82f6', // Blue
-  '#06b6d4', // Cyan
-  '#10b981', // Emerald
-  '#f59e0b', // Amber
-  '#ef4444', // Red
-  '#d946ef', // Fuchsia
-  '#6366f1', // Indigo
-];
-
 export function CustomPersonaModal({
   isOpen,
   onClose,
@@ -48,13 +36,9 @@ export function CustomPersonaModal({
   const isEditing = Boolean(personaToEdit && personaToEdit.isCustom);
 
   const [name, setName] = useState('');
-  const [tag, setTag] = useState('AI');
   const [role, setRole] = useState('');
   const [desc, setDesc] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
-  const [greeting, setGreeting] = useState('');
-  const [badgeColor, setBadgeColor] = useState('#ec4899');
-  const [temperature, setTemperature] = useState(0.6);
   const [customPortrait, setCustomPortrait] = useState<string>('');
   const [customLogo, setCustomLogo] = useState<string>('');
 
@@ -76,28 +60,20 @@ export function CustomPersonaModal({
   useEffect(() => {
     if (personaToEdit) {
       setName(personaToEdit.name || '');
-      setTag(personaToEdit.tag || 'AI');
       setRole(personaToEdit.role || '');
       setDesc(personaToEdit.desc || '');
       setSystemPrompt(
         personaToEdit.systemPrompt ||
           `You are ${personaToEdit.name}, a helpful and articulate AI companion.`
       );
-      setGreeting(personaToEdit.greeting || `Hello! I'm ${personaToEdit.name}. How can I assist you today?`);
-      setBadgeColor(personaToEdit.badgeColor || '#ec4899');
-      setTemperature(personaToEdit.temperature ?? 0.6);
       setCustomPortrait(personaToEdit.customPortrait || '');
       setCustomLogo(personaToEdit.customLogo || '');
       setWarnAcknowledged(true);
     } else {
       setName('');
-      setTag('AI');
       setRole('');
       setDesc('');
       setSystemPrompt('You are an expert conversational companion who is insightful, friendly, and articulate.');
-      setGreeting('Hello! Ready to chat, create, or solve problems together?');
-      setBadgeColor('#ec4899');
-      setTemperature(0.6);
       setCustomPortrait('');
       setCustomLogo('');
       setWarnAcknowledged(false);
@@ -146,13 +122,11 @@ export function CustomPersonaModal({
     const newPersona: Persona = {
       id: personaId,
       name: name.trim(),
-      tag: tag.trim() || 'AI',
+      tag: 'AI',
       role: role.trim() || 'Custom Companion',
       desc: desc.trim() || `Custom AI companion created by user.`,
       systemPrompt: systemPrompt.trim(),
-      greeting: greeting.trim() || `Hello! I'm ${name}. Let's chat!`,
-      badgeColor,
-      temperature,
+      badgeColor: '#ec4899',
       customPortrait: customPortrait || undefined,
       customLogo: customLogo || undefined,
       isCustom: true,
@@ -175,8 +149,7 @@ export function CustomPersonaModal({
           <div className="flex items-center justify-between pb-4 border-b border-inherit">
             <div className="flex items-center gap-2.5">
               <div
-                className="w-9 h-9 rounded-2xl flex items-center justify-center text-white shadow-lg"
-                style={{ background: badgeColor }}
+                className="w-9 h-9 rounded-2xl flex items-center justify-center text-white shadow-lg bg-pink-500"
               >
                 <Sparkles size={18} />
               </div>
@@ -206,34 +179,19 @@ export function CustomPersonaModal({
           </div>
 
           <form onSubmit={handleSubmit} className="mt-5 space-y-4 max-h-[65vh] overflow-y-auto pr-1">
-            {/* Name, Tag, Role */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold uppercase tracking-wider themed-modal-muted mb-1.5">
-                  Persona Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Maya, Dr. Atlas, Nova"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl themed-modal-input border focus:border-pink-500 text-sm outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider themed-modal-muted mb-1.5">
-                  Tag / Age
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 26F, Expert, AI"
-                  value={tag}
-                  onChange={(e) => setTag(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl themed-modal-input border focus:border-pink-500 text-sm outline-none transition-colors font-mono"
-                />
-              </div>
+            {/* Persona Name */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider themed-modal-muted mb-1.5">
+                Persona Name *
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Maya, Dr. Atlas, Nova"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl themed-modal-input border focus:border-pink-500 text-sm outline-none transition-colors"
+              />
             </div>
 
             {/* Role / Subtitle */}
@@ -380,69 +338,6 @@ export function CustomPersonaModal({
               />
             </div>
 
-            {/* Opening Greeting */}
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider themed-modal-muted mb-1.5">
-                Initial Welcome Greeting
-              </label>
-              <input
-                type="text"
-                placeholder="What this persona says when starting a fresh chat"
-                value={greeting}
-                onChange={(e) => setGreeting(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl themed-modal-input border focus:border-pink-500 text-xs sm:text-sm outline-none transition-colors"
-              />
-            </div>
-
-            {/* Badge Color & Temperature */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider themed-modal-muted mb-2">
-                  Theme Accent Color
-                </label>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {COLOR_PRESETS.map((col) => (
-                    <button
-                      key={col}
-                      type="button"
-                      onClick={() => setBadgeColor(col)}
-                      className={`w-6 h-6 rounded-full border-2 transition-transform active:scale-90 ${
-                        badgeColor === col ? 'scale-125 border-white shadow-md ring-2 ring-pink-500' : 'border-transparent'
-                      }`}
-                      style={{ background: col }}
-                    />
-                  ))}
-                  <input
-                    type="color"
-                    value={badgeColor}
-                    onChange={(e) => setBadgeColor(e.target.value)}
-                    className="w-7 h-7 rounded-lg cursor-pointer bg-transparent border-0"
-                    title="Custom color"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-xs font-bold uppercase tracking-wider themed-modal-muted">
-                    Creativity (Temperature)
-                  </label>
-                  <span className="text-xs font-mono font-bold text-pink-500">
-                    {temperature.toFixed(2)}
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="0.1"
-                  max="1.2"
-                  step="0.05"
-                  value={temperature}
-                  onChange={(e) => setTemperature(parseFloat(e.target.value))}
-                  className="w-full h-1.5 bg-black/20 rounded-lg appearance-none cursor-pointer accent-pink-500"
-                />
-              </div>
-            </div>
-
             {/* Action Bar */}
             <div className="flex items-center justify-between gap-3 pt-5 border-t border-inherit">
               {isEditing && onDelete && personaToEdit ? (
@@ -535,13 +430,11 @@ export function CustomPersonaModal({
                   onSave({
                     id: personaId,
                     name: name.trim(),
-                    tag: tag.trim() || 'AI',
+                    tag: 'AI',
                     role: role.trim() || 'Custom Companion',
                     desc: desc.trim() || `Custom AI companion created by user.`,
                     systemPrompt: systemPrompt.trim(),
-                    greeting: greeting.trim() || `Hello! I'm ${name}. Let's chat!`,
-                    badgeColor,
-                    temperature,
+                    badgeColor: '#ec4899',
                     customPortrait: customPortrait || undefined,
                     customLogo: customLogo || undefined,
                     isCustom: true,

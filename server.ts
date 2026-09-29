@@ -14,6 +14,99 @@ const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
 const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'llama3.2-vision:11b';
 
+interface DiscoveredModels {
+  model: string;
+  visionModel: string;
+}
+
+const discoveredModelsCache: Record<string, { data: DiscoveredModels; timestamp: number }> = {};
+
+async function fetchAvailableModels(serverUrl: string): Promise<DiscoveredModels> {
+  const baseUrl = serverUrl.replace(/\/+$/, '');
+  const now = Date.now();
+  const cached = discoveredModelsCache[baseUrl];
+  if (cached && now - cached.timestamp < 15000) {
+    return cached.data;
+  }
+
+  let primaryModel: string | null = null;
+  let visionModel: string | null = null;
+
+  // 1. Try querying Ollama tags endpoint
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const tagsRes = await fetch(`${baseUrl}/api/tags`, {
+      method: 'GET',
+      headers: {
+        'ngrok-skip-browser-warning': 'true',
+        'User-Agent': 'MuxAI/2.4',
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (tagsRes.ok) {
+      const data = await tagsRes.json();
+      if (Array.isArray(data.models) && data.models.length > 0) {
+        const names: string[] = data.models
+          .map((m: any) => m.name || m.model)
+          .filter(Boolean);
+
+        if (names.length > 0) {
+          primaryModel = names[0];
+          const visionMatch = names.find((name) =>
+            /vision|llava|vl|multimodal|clip/i.test(name)
+          );
+          if (visionMatch) {
+            visionModel = visionMatch;
+          }
+        }
+      }
+    }
+  } catch {}
+
+  // 2. Fallback to /v1/models (OpenAI-compatible endpoint on Ollama/vLLM)
+  if (!primaryModel) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3500);
+      const modelsRes = await fetch(`${baseUrl}/v1/models`, {
+        method: 'GET',
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+          'User-Agent': 'MuxAI/2.4',
+        },
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (modelsRes.ok) {
+        const data = await modelsRes.json();
+        const list: any[] = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
+        const names = list.map((m: any) => m.id || m.name).filter(Boolean);
+        if (names.length > 0) {
+          primaryModel = names[0];
+          const visionMatch = names.find((name) =>
+            /vision|llava|vl|multimodal|clip/i.test(name)
+          );
+          if (visionMatch) {
+            visionModel = visionMatch;
+          }
+        }
+      }
+    } catch {}
+  }
+
+  const result: DiscoveredModels = {
+    model: primaryModel || OLLAMA_MODEL,
+    visionModel: visionModel || primaryModel || OLLAMA_VISION_MODEL,
+  };
+
+  discoveredModelsCache[baseUrl] = { data: result, timestamp: now };
+  return result;
+}
+
 const promptFileCache: Record<string, string> = {};
 
 async function fetchPromptFile(name: string, req: Request): Promise<string | null> {
@@ -148,13 +241,18 @@ app.get('/api/health', (_req: Request, res: Response) => {
   return res.status(200).json({ status: 'ok' });
 });
 
-// 2. Online Detection & Server Ping (Strictly Ollama Server)
-app.get('/api/ping', async (_req: Request, res: Response) => {
+// 2. Online Detection & Server Ping (Dynamic Model Discovery via Server URL API)
+app.get('/api/ping', async (req: Request, res: Response) => {
   try {
+    const requestedUrl =
+      (typeof req.query.serverUrl === 'string' && req.query.serverUrl.trim()) ||
+      (typeof req.query.url === 'string' && req.query.url.trim()) ||
+      OLLAMA_BASE_URL;
+    const baseUrl = requestedUrl.replace(/\/+$/, '');
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3500);
 
-    const baseUrl = OLLAMA_BASE_URL.replace(/\/$/, '');
     const response = await fetch(`${baseUrl}/api/tags`, {
       method: 'GET',
       headers: {
@@ -171,31 +269,41 @@ app.get('/api/ping', async (_req: Request, res: Response) => {
         },
         signal: controller.signal,
       }).catch(async () => {
-        return await fetch(baseUrl, {
+        return await fetch(`${baseUrl}/v1/models`, {
           method: 'GET',
           headers: {
             'ngrok-skip-browser-warning': 'true',
             'User-Agent': 'MuxAI/2.4',
           },
           signal: controller.signal,
-        }).catch(() => null);
+        }).catch(async () => {
+          return await fetch(baseUrl, {
+            method: 'GET',
+            headers: {
+              'ngrok-skip-browser-warning': 'true',
+              'User-Agent': 'MuxAI/2.4',
+            },
+            signal: controller.signal,
+          }).catch(() => null);
+        });
       });
     });
 
     clearTimeout(timeoutId);
 
     if (response && response.ok) {
+      const { model: activeModel } = await fetchAvailableModels(baseUrl);
       return res.status(200).json({
         status: 'online',
-        model: OLLAMA_MODEL,
-        url: OLLAMA_BASE_URL,
+        model: activeModel,
+        url: baseUrl,
         mode: 'ollama',
       });
     }
 
     return res.status(200).json({
       status: 'offline',
-      message: `Ollama server unreachable at ${OLLAMA_BASE_URL}`,
+      message: `Ollama server unreachable at ${baseUrl}`,
     });
   } catch {
     return res.status(200).json({
@@ -205,8 +313,10 @@ app.get('/api/ping', async (_req: Request, res: Response) => {
   }
 });
 
-// 3. Chat Endpoint (Strictly Ollama Server)
+// 3. Chat Endpoint (Dynamically Discovered Model via Server URL API)
 app.post('/api/chat', async (req: Request, res: Response) => {
+  let activeBaseUrl = OLLAMA_BASE_URL;
+  let activeModel = OLLAMA_MODEL;
   try {
     const {
       messages = [],
@@ -216,7 +326,16 @@ app.post('/api/chat', async (req: Request, res: Response) => {
       jsonMode = false,
       tools = null,
       temperature = 0.6,
+      serverUrl = null,
     } = req.body || {};
+
+    activeBaseUrl = (serverUrl && typeof serverUrl === 'string' && serverUrl.trim())
+      ? serverUrl.trim()
+      : OLLAMA_BASE_URL;
+
+    // Dynamically fetch available model from server URL API
+    const discovered = await fetchAvailableModels(activeBaseUrl);
+    activeModel = discovered.model;
 
     const history = Array.isArray(messages) ? messages : [];
     const explicitPrompt =
@@ -242,7 +361,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     }
 
     const payload: any = {
-      model: OLLAMA_MODEL,
+      model: activeModel,
       temperature: temperature,
       max_tokens: 2048,
       messages: [
@@ -260,7 +379,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
       payload.tool_choice = 'auto';
     }
 
-    const endpoint = `${OLLAMA_BASE_URL.replace(/\/$/, '')}/v1/chat/completions`;
+    const endpoint = `${activeBaseUrl.replace(/\/+$/, '')}/v1/chat/completions`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 20000);
 
@@ -281,7 +400,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
       const errorText = await upstream.text().catch(() => '');
       return res.status(upstream.status).json({
         error: `Ollama error (${upstream.status})`,
-        detail: errorText || `Ollama server at ${OLLAMA_BASE_URL} returned status ${upstream.status}`,
+        detail: errorText || `Ollama server at ${activeBaseUrl} returned status ${upstream.status} for model ${activeModel}`,
       });
     }
 
@@ -313,24 +432,30 @@ app.post('/api/chat', async (req: Request, res: Response) => {
   } catch (err: any) {
     return res.status(502).json({
       error: 'Chat completion failed: Ollama server unreachable.',
-      detail: `Ensure your Ollama server is running at ${OLLAMA_BASE_URL} with model ${OLLAMA_MODEL}. Error: ${err?.message || err}`,
+      detail: `Ensure your Ollama server is running at ${activeBaseUrl} with model ${activeModel}. Error: ${err?.message || err}`,
     });
   }
 });
 
-// 4. Generate Title (Ollama)
+// 4. Generate Title (Dynamically Discovered Model via Server URL API)
 app.post('/api/generate-title', async (req: Request, res: Response) => {
   try {
-    const { messages = [] } = req.body || {};
+    const { messages = [], serverUrl = null } = req.body || {};
     const textSnippet = messages.slice(0, 4).map((m: any) => `${m.role}: ${m.content}`).join('\n');
 
     if (!textSnippet) {
       return res.status(200).json({ title: 'New chat' });
     }
 
-    // Call Ollama
+    const activeBaseUrl = (serverUrl && typeof serverUrl === 'string' && serverUrl.trim())
+      ? serverUrl.trim()
+      : OLLAMA_BASE_URL;
+
+    const { model: activeModel } = await fetchAvailableModels(activeBaseUrl);
+
+    // Call Ollama with dynamically discovered model
     try {
-      const endpoint = `${OLLAMA_BASE_URL.replace(/\/$/, '')}/v1/chat/completions`;
+      const endpoint = `${activeBaseUrl.replace(/\/+$/, '')}/v1/chat/completions`;
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 4000);
 
@@ -341,7 +466,7 @@ app.post('/api/generate-title', async (req: Request, res: Response) => {
           'ngrok-skip-browser-warning': 'true',
         },
         body: JSON.stringify({
-          model: OLLAMA_MODEL,
+          model: activeModel,
           temperature: 0.3,
           max_tokens: 30,
           messages: [
@@ -377,19 +502,28 @@ app.post('/api/generate-title', async (req: Request, res: Response) => {
   }
 });
 
-// 5. Vision Analysis (Ollama Vision Model)
+// 5. Vision Analysis (Dynamically Discovered Model via Server URL API)
 app.post('/api/vision', async (req: Request, res: Response) => {
+  let activeBaseUrl = OLLAMA_BASE_URL;
+  let targetModel = OLLAMA_VISION_MODEL;
   try {
-    const { prompt, images, model } = req.body || {};
+    const { prompt, images, model, serverUrl = null } = req.body || {};
     if (!images || !Array.isArray(images) || images.length === 0) {
       return res.status(400).json({ error: 'At least one image (base64) is required' });
     }
 
+    activeBaseUrl = (serverUrl && typeof serverUrl === 'string' && serverUrl.trim())
+      ? serverUrl.trim()
+      : OLLAMA_BASE_URL;
+
+    // Dynamically discover available vision/primary model
+    const discovered = await fetchAvailableModels(activeBaseUrl);
+    targetModel = model || discovered.visionModel || discovered.model;
+
     const visionPrompt = prompt || 'Describe this image in detail. What objects, text, people, and context do you observe?';
-    const targetModel = model || OLLAMA_VISION_MODEL;
 
     // Send to Ollama vision
-    const endpoint = `${OLLAMA_BASE_URL.replace(/\/$/, '')}/api/chat`;
+    const endpoint = `${activeBaseUrl.replace(/\/+$/, '')}/api/chat`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
 
@@ -424,13 +558,13 @@ app.post('/api/vision', async (req: Request, res: Response) => {
       const errText = await upstream.text().catch(() => '');
       return res.status(upstream.status).json({
         error: `Ollama vision server returned status ${upstream.status}`,
-        detail: errText || `Ensure ${targetModel} is installed on your Ollama server.`,
+        detail: errText || `Ensure ${targetModel} is installed on your Ollama server at ${activeBaseUrl}.`,
       });
     }
   } catch (err: any) {
     return res.status(502).json({
       error: 'Vision analysis failed: Ollama vision server is unreachable.',
-      detail: `Ensure your Ollama server is running at ${OLLAMA_BASE_URL} with vision model ${OLLAMA_VISION_MODEL}. Error: ${err?.message || err}`,
+      detail: `Ensure your Ollama server is running at ${activeBaseUrl} with vision model ${targetModel}. Error: ${err?.message || err}`,
     });
   }
 });

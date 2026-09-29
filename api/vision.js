@@ -12,16 +12,37 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { prompt, images, model } = req.body || {};
+    const { prompt, images, model, serverUrl = null } = req.body || {};
 
     if (!images || !Array.isArray(images) || images.length === 0) {
       return res.status(400).json({ error: 'At least one image (base64) is required' });
     }
 
+    const activeBaseUrl = (serverUrl && typeof serverUrl === 'string' && serverUrl.trim())
+      ? serverUrl.trim()
+      : OLLAMA_BASE_URL;
+
+    let targetModel = model || OLLAMA_VISION_MODEL;
+    if (!model) {
+      try {
+        const tagsRes = await fetch(`${activeBaseUrl.replace(/\/+$/, '')}/api/tags`, {
+          headers: { 'ngrok-skip-browser-warning': 'true' }
+        });
+        if (tagsRes.ok) {
+          const data = await tagsRes.json();
+          if (Array.isArray(data?.models) && data.models.length > 0) {
+            const names = data.models.map(m => m.name || m.model).filter(Boolean);
+            const visionMatch = names.find(n => /vision|llava|vl|multimodal|clip/i.test(n));
+            targetModel = visionMatch || names[0] || targetModel;
+          }
+        }
+      } catch {}
+    }
+
     const visionPrompt = prompt || 'Describe this image in detail.';
 
     // Use Ollama's native /api/chat endpoint which supports multimodal images
-    const endpoint = `${OLLAMA_BASE_URL.replace(/\/$/, '')}/api/chat`;
+    const endpoint = `${activeBaseUrl.replace(/\/+$/, '')}/api/chat`;
     const upstream = await fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -29,7 +50,7 @@ export default async function handler(req, res) {
         'ngrok-skip-browser-warning': 'true',
       },
       body: JSON.stringify({
-        model: model || OLLAMA_VISION_MODEL,
+        model: targetModel,
         messages: [
           {
             role: 'user',
@@ -56,7 +77,7 @@ export default async function handler(req, res) {
     const data = await upstream.json();
     const reply = data.message?.content?.trim() || '';
 
-    return res.status(200).json({ reply, model: model || OLLAMA_VISION_MODEL });
+    return res.status(200).json({ reply, model: targetModel });
   } catch (err) {
     return res.status(500).json({ error: 'Internal error', detail: String(err) });
   }

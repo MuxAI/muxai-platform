@@ -1,12 +1,6 @@
-import { track } from '@vercel/analytics';
-
 /**
- * Log a user action or system event to Vercel Analytics with error shielding
+ * Log a user action or system event with error shielding (no-op in AI Studio)
  */
-export function trackEvent(name: string, properties?: Record<string, string | number | boolean | null>) {
-  try {
-    track(name, properties || {});
-  } catch {
-    // Analytics failure should never disrupt the application experience
-  }
+export function trackEvent(_name: string, _properties?: Record<string, string | number | boolean | null>) {
+  // Safe no-op for AI Studio environment
 }

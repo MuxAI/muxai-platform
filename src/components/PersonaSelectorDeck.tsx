@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
-import { Check, Sparkles, Plus, Edit2, Bot, User, Trash2 } from 'lucide-react';
+import { Check, Sparkles, Plus, Edit2, Bot, User, Trash2, Cpu } from 'lucide-react';
 import { getAllPersonas, getPersonaImageUrl } from '../lib/constants';
 import { Persona } from '../types';
+import { isSLMDownloaded, getSLMSpecByPersonaId, SLMModelSpec } from '../lib/slmStorage';
 
 interface PersonaSelectorDeckProps {
   selectedPersona: string;
@@ -11,6 +12,8 @@ interface PersonaSelectorDeckProps {
   onOpenCreatePersona?: () => void;
   onEditPersona?: (persona: Persona) => void;
   onDeletePersona?: (id: string) => void;
+  onOpenSLMManage?: (spec: SLMModelSpec) => void;
+  slmRefreshTrigger?: number;
 }
 
 export function PersonaSelectorDeck({
@@ -20,6 +23,8 @@ export function PersonaSelectorDeck({
   onOpenCreatePersona,
   onEditPersona,
   onDeletePersona,
+  onOpenSLMManage,
+  slmRefreshTrigger,
 }: PersonaSelectorDeckProps) {
   const [imgErrors, setImgErrors] = useState<Record<string, boolean>>({});
 
@@ -53,7 +58,7 @@ export function PersonaSelectorDeck({
         </div>
       </div>
 
-      <div className="w-full overflow-x-auto pb-4 pt-1 snap-x snap-mandatory flex gap-3.5 custom-scrollbar px-1 items-stretch">
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5 sm:gap-4 w-full pt-1 px-1">
         {list.map((p) => {
           const isSelected = selectedPersona === p.id;
           const portraitUrl = p.customPortrait || getPersonaImageUrl(p.id, 'portrait');
@@ -62,12 +67,13 @@ export function PersonaSelectorDeck({
           return (
             <motion.div
               key={p.id}
-              whileHover={{ scale: 1.03, y: -4 }}
-              whileTap={{ scale: 0.97 }}
+              id={p.isSLM ? `slm-card-${p.id}` : undefined}
+              whileHover={{ scale: 1.02, y: -4 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => onSelect(p.id)}
-              className={`shrink-0 w-44 sm:w-52 aspect-[9/14] rounded-3xl border-2 overflow-hidden relative cursor-pointer snap-center transition-all duration-300 select-none shadow-md group ${
+              className={`w-full aspect-[9/14] rounded-3xl border-2 overflow-hidden relative cursor-pointer transition-all duration-300 select-none shadow-md group ${
                 isSelected
-                  ? 'scale-[1.03] shadow-xl ring-2 ring-pink-500/40 z-10'
+                  ? 'scale-[1.02] shadow-xl ring-2 ring-pink-500/40 z-10'
                   : 'border-slate-200 dark:border-white/10 opacity-85 hover:opacity-100 hover:border-slate-300 dark:hover:border-white/30'
               }`}
               style={isSelected ? { borderColor: 'var(--accent, #ec4899)' } : {}}
@@ -147,15 +153,39 @@ export function PersonaSelectorDeck({
                 </div>
               )}
 
-              {/* Tag at Top Left */}
-              <div className="absolute top-3 left-3 flex items-center gap-1">
-                <span className="text-[10px] font-mono font-bold bg-black/60 text-white px-2 py-0.5 rounded-full backdrop-blur-md border border-white/15">
-                  {p.tag}
-                </span>
+              {/* Top Left Indicators */}
+              <div className="absolute top-3 left-3 flex items-center gap-1.5 z-20">
                 {p.isCustom && (
-                  <span className="text-[9px] font-bold bg-pink-500/80 text-white px-1.5 py-0.5 rounded-full backdrop-blur-md">
+                  <span className="text-[9px] font-bold bg-pink-500/90 text-white px-2 py-0.5 rounded-full backdrop-blur-md shadow-sm">
                     Custom
                   </span>
+                )}
+                {p.isSLM && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const spec = getSLMSpecByPersonaId(p.id);
+                      if (spec && onOpenSLMManage) {
+                        onOpenSLMManage(spec);
+                      }
+                    }}
+                    title={
+                      isSLMDownloaded(p.slmModelId || p.id)
+                        ? 'SLM Model Downloaded in browser. Click to inspect or delete.'
+                        : 'On-Device SLM. Click to view model details.'
+                    }
+                    className={`inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full backdrop-blur-md shadow-sm transition-all hover:scale-105 active:scale-95 cursor-pointer ${
+                      isSLMDownloaded(p.slmModelId || p.id)
+                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/40 ring-1 ring-emerald-400/30'
+                        : 'bg-zinc-900/90 hover:bg-zinc-800 text-emerald-400 border border-emerald-500/40'
+                    }`}
+                  >
+                    {isSLMDownloaded(p.slmModelId || p.id) && (
+                      <Check size={11} strokeWidth={3} className="text-white" />
+                    )}
+                    <span>SLM</span>
+                  </button>
                 )}
               </div>
 
@@ -179,13 +209,13 @@ export function PersonaSelectorDeck({
           );
         })}
 
-        {/* "+" Create Custom Persona Card at the Far Right */}
+        {/* "+" Create Custom Persona Card at the End of Grid */}
         {onOpenCreatePersona && (
           <motion.div
-            whileHover={{ scale: 1.03, y: -4 }}
-            whileTap={{ scale: 0.97 }}
+            whileHover={{ scale: 1.02, y: -4 }}
+            whileTap={{ scale: 0.98 }}
             onClick={onOpenCreatePersona}
-            className="shrink-0 w-44 sm:w-52 aspect-[9/14] rounded-3xl border-2 border-dashed border-zinc-400/40 hover:border-pink-500/80 bg-zinc-900/40 hover:bg-pink-500/5 backdrop-blur-sm overflow-hidden relative cursor-pointer snap-center transition-all duration-300 select-none shadow-md flex flex-col items-center justify-center p-4 text-center group"
+            className="w-full aspect-[9/14] rounded-3xl border-2 border-dashed border-zinc-400/40 hover:border-pink-500/80 bg-zinc-900/40 hover:bg-pink-500/5 backdrop-blur-sm overflow-hidden relative cursor-pointer transition-all duration-300 select-none shadow-md flex flex-col items-center justify-center p-4 text-center group"
           >
             <div className="w-14 h-14 rounded-2xl bg-pink-500/15 border border-pink-500/30 text-pink-500 flex items-center justify-center mb-3 group-hover:scale-110 group-hover:bg-pink-500 group-hover:text-white transition-all shadow-lg">
               <Plus size={28} strokeWidth={2.5} />

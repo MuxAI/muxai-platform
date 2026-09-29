@@ -26,6 +26,8 @@ interface ChatInputProps {
   isOnline?: boolean;
   options: ModelOptions;
   onOptionsChange: (opts: ModelOptions) => void;
+  slmStatusBar?: React.ReactNode;
+  mascotSlot?: React.ReactNode;
 }
 
 export function ChatInput({
@@ -35,6 +37,8 @@ export function ChatInput({
   isOnline = true,
   options,
   onOptionsChange,
+  slmStatusBar,
+  mascotSlot,
 }: ChatInputProps) {
   const [value, setValue] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -245,35 +249,7 @@ export function ChatInput({
                   </span>
                 </button>
 
-                {/* Direct Image Generation */}
-                <button
-                  type="button"
-                  disabled={disabled || !value.trim()}
-                  onClick={() => {
-                    if (value.trim()) {
-                      onGenerateImage(value.trim());
-                      setValue('');
-                      setMenuOpen(false);
-                    }
-                  }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-2xl text-xs transition-colors mb-1.5 themed-sidebar-hover disabled:opacity-40"
-                  title="Type your visual prompt in the box, then click here to render directly"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-xl bg-pink-500/10 text-pink-500 flex items-center justify-center">
-                      <ImageIcon size={16} />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-semibold">Generate Image</div>
-                      <div className="text-[10px] opacity-60">Render artwork from prompt</div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-pink-500/10 text-pink-500">
-                    Direct
-                  </span>
-                </button>
-
-                {/* JSON Mode Toggle */}
+                {/* Structured JSON Mode */}
                 <button
                   type="button"
                   onClick={() =>
@@ -354,10 +330,47 @@ export function ChatInput({
                     <span>Creative (1.0)</span>
                   </div>
                 </div>
+
+                {/* Max Tokens Slider (default: 512) */}
+                <div className="p-3 rounded-2xl border border-white/10 mt-2 bg-black/5">
+                  <div className="flex justify-between items-center text-xs mb-2">
+                    <span className="flex items-center gap-1.5 font-semibold opacity-80">
+                      <Sparkles size={14} /> Max Tokens
+                    </span>
+                    <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-pink-500/15 text-pink-500">
+                      {options.maxTokens ?? 512}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="64"
+                    max="2048"
+                    step="64"
+                    value={options.maxTokens ?? 512}
+                    onChange={(e) =>
+                      onOptionsChange({
+                        ...options,
+                        maxTokens: parseInt(e.target.value, 10),
+                      })
+                    }
+                    className="w-full accent-pink-500 cursor-pointer h-1.5 bg-zinc-700/50 rounded-lg"
+                  />
+                  <div className="flex justify-between text-[10px] opacity-50 mt-1">
+                    <span>64</span>
+                    <span>512 (default)</span>
+                    <span>2048</span>
+                  </div>
+                </div>
               </motion.div>
             </>
           )}
         </AnimatePresence>
+
+        {/* Mascot Puppet Slot */}
+        {mascotSlot}
+
+        {/* Optional SLM Status Bar on top of the input pill */}
+        {slmStatusBar}
 
         {/* Input Pill Container */}
         <div className="flex items-end gap-2 border rounded-3xl shadow-xl transition-all pl-2.5 sm:pl-3.5 pr-2.5 py-2.5 themed-input backdrop-blur-xl">
