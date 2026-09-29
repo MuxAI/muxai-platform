@@ -28,6 +28,9 @@ interface ChatInputProps {
   onOptionsChange: (opts: ModelOptions) => void;
   slmStatusBar?: React.ReactNode;
   mascotSlot?: React.ReactNode;
+  isSLM?: boolean;
+  isGenerating?: boolean;
+  onStop?: () => void;
 }
 
 export function ChatInput({
@@ -39,6 +42,9 @@ export function ChatInput({
   onOptionsChange,
   slmStatusBar,
   mascotSlot,
+  isSLM = false,
+  isGenerating = false,
+  onStop,
 }: ChatInputProps) {
   const [value, setValue] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -58,7 +64,7 @@ export function ChatInput({
   }, [value]);
 
   const handleFiles = async (files: File[]) => {
-    if (files.length === 0) return;
+    if (files.length === 0 || isSLM) return;
     const validFiles = files.filter((f) => f.size <= MAX_FILE_SIZE);
     const room = MAX_FILES - attachments.length;
     const toAdd = validFiles.slice(0, room);
@@ -103,16 +109,19 @@ export function ChatInput({
   };
 
   const handleDragOver = (e: DragEvent) => {
+    if (isSLM) return;
     e.preventDefault();
     setIsDragging(true);
   };
 
   const handleDragLeave = (e: DragEvent) => {
+    if (isSLM) return;
     e.preventDefault();
     setIsDragging(false);
   };
 
   const handleDrop = (e: DragEvent) => {
+    if (isSLM) return;
     e.preventDefault();
     setIsDragging(false);
     if (e.dataTransfer.files) {
@@ -122,8 +131,9 @@ export function ChatInput({
 
   const submit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (isSLM && isGenerating) return;
     const hasText = value.trim().length > 0;
-    const readyAttachments = attachments.filter((a) => !a.error && !a.parsing);
+    const readyAttachments = isSLM ? [] : attachments.filter((a) => !a.error && !a.parsing);
     const hasReadyAttachments = readyAttachments.length > 0;
 
     if ((!hasText && !hasReadyAttachments) || disabled || parsing) return;
@@ -222,84 +232,89 @@ export function ChatInput({
                 className="absolute bottom-full left-0 mb-3 w-80 p-3.5 border rounded-3xl shadow-2xl z-40 themed-menu backdrop-blur-xl"
               >
                 <div className="text-[11px] font-bold uppercase tracking-wider mb-2.5 px-1 opacity-60">
-                  Model Capabilities & Tools
+                  {isSLM ? 'On-Device SLM Controls' : 'Model Capabilities & Tools'}
                 </div>
 
-                {/* Attach Files */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    fileInputRef.current?.click();
-                    setMenuOpen(false);
-                  }}
-                  disabled={disabled || attachments.length >= MAX_FILES}
-                  className="w-full flex items-center justify-between p-2.5 rounded-2xl text-xs transition-colors mb-1.5 themed-sidebar-hover disabled:opacity-40"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center">
-                      <Paperclip size={16} />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-semibold">Attach Files</div>
-                      <div className="text-[10px] opacity-60">PDF, DOCX, XLSX, Code, Images</div>
-                    </div>
-                  </div>
-                  <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/5">
-                    {attachments.length}/{MAX_FILES}
-                  </span>
-                </button>
+                {/* Attach Files & Tools are available only for remote models */}
+                {!isSLM && (
+                  <>
+                    {/* Attach Files */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        fileInputRef.current?.click();
+                        setMenuOpen(false);
+                      }}
+                      disabled={disabled || attachments.length >= MAX_FILES}
+                      className="w-full flex items-center justify-between p-2.5 rounded-2xl text-xs transition-colors mb-1.5 themed-sidebar-hover disabled:opacity-40"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center">
+                          <Paperclip size={16} />
+                        </div>
+                        <div className="text-left">
+                          <div className="font-semibold">Attach Files</div>
+                          <div className="text-[10px] opacity-60">PDF, DOCX, XLSX, Code, Images</div>
+                        </div>
+                      </div>
+                      <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/5">
+                        {attachments.length}/{MAX_FILES}
+                      </span>
+                    </button>
 
-                {/* Structured JSON Mode */}
-                <button
-                  type="button"
-                  onClick={() =>
-                    onOptionsChange({ ...options, jsonMode: !options.jsonMode })
-                  }
-                  className={`w-full flex items-center justify-between p-2.5 rounded-2xl text-xs transition-colors mb-1.5 ${
-                    options.jsonMode
-                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                      : 'themed-sidebar-hover'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
-                      <Code2 size={16} />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-semibold">Structured JSON Mode</div>
-                      <div className="text-[10px] opacity-60">Strict schema response</div>
-                    </div>
-                  </div>
-                  <span className="font-mono text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border border-current">
-                    {options.jsonMode ? 'ON' : 'OFF'}
-                  </span>
-                </button>
+                    {/* Structured JSON Mode */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onOptionsChange({ ...options, jsonMode: !options.jsonMode })
+                      }
+                      className={`w-full flex items-center justify-between p-2.5 rounded-2xl text-xs transition-colors mb-1.5 ${
+                        options.jsonMode
+                          ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                          : 'themed-sidebar-hover'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
+                          <Code2 size={16} />
+                        </div>
+                        <div className="text-left">
+                          <div className="font-semibold">Structured JSON Mode</div>
+                          <div className="text-[10px] opacity-60">Strict schema response</div>
+                        </div>
+                      </div>
+                      <span className="font-mono text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border border-current">
+                        {options.jsonMode ? 'ON' : 'OFF'}
+                      </span>
+                    </button>
 
-                {/* Tool Calling Agent Toggle */}
-                <button
-                  type="button"
-                  onClick={() =>
-                    onOptionsChange({ ...options, toolCalling: !options.toolCalling })
-                  }
-                  className={`w-full flex items-center justify-between p-2.5 rounded-2xl text-xs transition-colors mb-1.5 ${
-                    options.toolCalling
-                      ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
-                      : 'themed-sidebar-hover'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center">
-                      <Wrench size={16} />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-semibold">Tool Calling Agent</div>
-                      <div className="text-[10px] opacity-60">Weather, Web, Crypto, Wiki</div>
-                    </div>
-                  </div>
-                  <span className="font-mono text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border border-current">
-                    {options.toolCalling ? 'ON' : 'OFF'}
-                  </span>
-                </button>
+                    {/* Tool Calling Agent Toggle */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onOptionsChange({ ...options, toolCalling: !options.toolCalling })
+                      }
+                      className={`w-full flex items-center justify-between p-2.5 rounded-2xl text-xs transition-colors mb-1.5 ${
+                        options.toolCalling
+                          ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                          : 'themed-sidebar-hover'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center">
+                          <Wrench size={16} />
+                        </div>
+                        <div className="text-left">
+                          <div className="font-semibold">Tool Calling Agent</div>
+                          <div className="text-[10px] opacity-60">Weather, Web, Crypto, Wiki</div>
+                        </div>
+                      </div>
+                      <span className="font-mono text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border border-current">
+                        {options.toolCalling ? 'ON' : 'OFF'}
+                      </span>
+                    </button>
+                  </>
+                )}
 
                 {/* Creativity / Temperature Slider */}
                 <div className="p-3 rounded-2xl border border-white/10 mt-2 bg-black/5">
@@ -396,30 +411,43 @@ export function ChatInput({
               }
             }}
             placeholder={
-              !isOnline
+              isSLM && isGenerating
+                ? 'Responding...'
+                : !isOnline
                 ? 'Server is offline right now.'
-                : 'Type a message or drop files...'
+                : 'Type a message...'
             }
             rows={1}
-            disabled={effectiveDisabled}
+            disabled={effectiveDisabled || (isSLM && isGenerating)}
             className="flex-1 bg-transparent outline-none resize-none font-normal text-sm sm:text-base py-2 max-h-44 disabled:opacity-50 disabled:cursor-not-allowed themed-text min-h-[26px]"
           />
 
-          <button
-            type="submit"
-            disabled={
-              effectiveDisabled ||
-              (!value.trim() && attachments.filter((a) => !a.error && !a.parsing).length === 0) ||
-              parsing
-            }
-            className="w-10 h-10 sm:w-11 sm:h-11 shrink-0 rounded-full flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95 themed-send-btn shadow-md"
-          >
-            {parsing ? (
-              <Loader2 size={18} className="animate-spin" />
-            ) : (
-              <Send size={18} />
-            )}
-          </button>
+          {isSLM && isGenerating ? (
+            <button
+              type="button"
+              onClick={onStop}
+              className="w-10 h-10 sm:w-11 sm:h-11 shrink-0 rounded-full flex items-center justify-center transition-all hover:scale-105 active:scale-95 bg-red-500/20 hover:bg-red-500/30 text-red-500 border border-red-500/40 shadow-md cursor-pointer animate-pulse"
+              title="Stop generation"
+            >
+              <X size={18} strokeWidth={2.5} />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={
+                effectiveDisabled ||
+                (!value.trim() && attachments.filter((a) => !a.error && !a.parsing).length === 0) ||
+                parsing
+              }
+              className="w-10 h-10 sm:w-11 sm:h-11 shrink-0 rounded-full flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95 themed-send-btn shadow-md"
+            >
+              {parsing ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <Send size={18} />
+              )}
+            </button>
+          )}
         </div>
 
         {/* Capability Status Chips */}
@@ -428,23 +456,25 @@ export function ChatInput({
             Press <kbd className="px-1.5 py-0.5 rounded bg-black/10 font-mono text-[10px]">Enter</kbd> to send, <kbd className="px-1.5 py-0.5 rounded bg-black/10 font-mono text-[10px]">Shift+Enter</kbd> for newline
           </div>
 
-          <div className="flex items-center gap-1.5 ml-auto">
-            {options.jsonMode && (
-              <span className="text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                <Code2 size={10} /> JSON
-              </span>
-            )}
-            {options.toolCalling && (
-              <span className="text-[10px] font-mono font-bold bg-blue-500/15 text-blue-400 border border-blue-500/30 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                <Wrench size={10} /> Tools
-              </span>
-            )}
-            {attachments.length > 0 && (
-              <span className="text-[10px] font-mono font-bold bg-purple-500/15 text-purple-400 border border-purple-500/30 px-2.5 py-0.5 rounded-full">
-                {attachments.length} File{attachments.length > 1 ? 's' : ''}
-              </span>
-            )}
-          </div>
+          {!isSLM && (
+            <div className="flex items-center gap-1.5 ml-auto">
+              {options.jsonMode && (
+                <span className="text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                  <Code2 size={10} /> JSON
+                </span>
+              )}
+              {options.toolCalling && (
+                <span className="text-[10px] font-mono font-bold bg-blue-500/15 text-blue-400 border border-blue-500/30 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                  <Wrench size={10} /> Tools
+                </span>
+              )}
+              {attachments.length > 0 && (
+                <span className="text-[10px] font-mono font-bold bg-purple-500/15 text-purple-400 border border-purple-500/30 px-2.5 py-0.5 rounded-full">
+                  {attachments.length} File{attachments.length > 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </form>
     </div>

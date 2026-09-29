@@ -120,9 +120,11 @@ export interface RateInfo {
 export interface ImportConflict {
   id: string;
   type: 'conversation' | 'persona' | 'theme';
-  title: string;
+  title?: string;
+  name?: string;
+  details?: string;
   existingItem: any;
   incomingItem: any;
-  differences: string[];
+  differences?: string[];
 }
 

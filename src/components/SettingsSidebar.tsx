@@ -107,6 +107,7 @@ export function SettingsSidebar({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.08 }}
             onClick={handleClose}
             className="fixed inset-0 z-40 md:hidden bg-black/60 backdrop-blur-sm"
           />
@@ -115,7 +116,7 @@ export function SettingsSidebar({
 
       {/* Slide-in Sidebar */}
       <aside
-        className={`fixed top-0 right-0 h-full w-84 sm:w-96 z-50 flex flex-col transition-transform duration-300 border-l themed-theme-sidebar backdrop-blur-2xl shadow-2xl ${
+        className={`fixed top-0 right-0 h-full w-84 sm:w-96 z-50 flex flex-col transition-transform duration-100 ease-out border-l themed-theme-sidebar backdrop-blur-2xl shadow-2xl ${
           open ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
@@ -143,66 +144,43 @@ export function SettingsSidebar({
 
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
-              {/* SECTION 1: Graphics Quality */}
+              {/* SECTION 1: Themes & Styling */}
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider themed-sidebar-muted">
-                    Graphics Quality
+                    Themes & Styling
                   </span>
-                  <span className="text-[10px] font-mono opacity-60">Visual Engine</span>
+                  <span className="text-[10px] font-mono opacity-60">{themeList.length} themes</span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  {/* Fancy Button */}
-                  <button
-                    type="button"
-                    onClick={() => onSelectGraphicsQuality('fancy')}
-                    className={`p-3 rounded-2xl border text-left transition-all relative overflow-hidden flex flex-col justify-between ${
-                      graphicsQuality === 'fancy'
-                        ? 'border-pink-500/60 bg-pink-500/15 shadow-sm ring-1 ring-pink-500/30'
-                        : 'border-inherit bg-black/10 hover:border-zinc-500/40 opacity-80 hover:opacity-100'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between w-full mb-1">
-                      <div className="flex items-center gap-1.5 font-bold text-xs">
-                        <Sparkles size={14} className="text-pink-400" />
-                        <span>Fancy</span>
-                      </div>
-                      {graphicsQuality === 'fancy' && (
-                        <div className="w-4 h-4 rounded-full bg-pink-500 text-white flex items-center justify-center">
-                          <Check size={10} strokeWidth={3} />
-                        </div>
-                      )}
+                <div className="p-3.5 rounded-2xl border border-inherit bg-black/10 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-pink-500/15 text-pink-400">
+                      <Palette size={18} />
                     </div>
-                    <p className="text-[10px] opacity-70 leading-tight">
-                      Dynamic effects (Default)
-                    </p>
-                  </button>
+                    <div>
+                      <div className="font-bold text-xs sm:text-sm truncate max-w-[130px]">
+                        {currentThemeObj?.name || 'Default'}
+                      </div>
+                      <div className="flex gap-1 mt-1">
+                        {currentThemeObj?.swatches?.slice(0, 4).map((c, i) => (
+                          <span
+                            key={i}
+                            className="w-2.5 h-2.5 rounded-full border border-white/20"
+                            style={{ background: c }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
 
-                  {/* Smooth Button */}
                   <button
                     type="button"
-                    onClick={() => onSelectGraphicsQuality('smooth')}
-                    className={`p-3 rounded-2xl border text-left transition-all relative overflow-hidden flex flex-col justify-between ${
-                      graphicsQuality === 'smooth'
-                        ? 'border-indigo-500/60 bg-indigo-500/15 shadow-sm ring-1 ring-indigo-500/30'
-                        : 'border-inherit bg-black/10 hover:border-zinc-500/40 opacity-80 hover:opacity-100'
-                    }`}
+                    onClick={() => setCurrentView('themes')}
+                    className="py-2 px-3.5 rounded-xl themed-btn font-bold text-xs flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 shadow-sm"
                   >
-                    <div className="flex items-center justify-between w-full mb-1">
-                      <div className="flex items-center gap-1.5 font-bold text-xs">
-                        <Zap size={14} className="text-indigo-400" />
-                        <span>Smooth</span>
-                      </div>
-                      {graphicsQuality === 'smooth' && (
-                        <div className="w-4 h-4 rounded-full bg-indigo-500 text-white flex items-center justify-center">
-                          <Check size={10} strokeWidth={3} />
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-[10px] opacity-70 leading-tight">
-                      More performance
-                    </p>
+                    <span>Customize UI</span>
+                    <ChevronRight size={14} />
                   </button>
                 </div>
               </div>
@@ -291,43 +269,66 @@ export function SettingsSidebar({
                 </div>
               </div>
 
-              {/* SECTION 4: Themes */}
+              {/* SECTION 4: Graphics Quality */}
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider themed-sidebar-muted">
-                    Themes & Styling
+                    Graphics Quality
                   </span>
-                  <span className="text-[10px] font-mono opacity-60">{themeList.length} themes</span>
+                  <span className="text-[10px] font-mono opacity-60">Visual Engine</span>
                 </div>
 
-                <div className="p-3.5 rounded-2xl border border-inherit bg-black/10 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-pink-500/15 text-pink-400">
-                      <Palette size={18} />
-                    </div>
-                    <div>
-                      <div className="font-bold text-xs sm:text-sm truncate max-w-[130px]">
-                        {currentThemeObj?.name || 'Default'}
-                      </div>
-                      <div className="flex gap-1 mt-1">
-                        {currentThemeObj?.swatches?.slice(0, 4).map((c, i) => (
-                          <span
-                            key={i}
-                            className="w-2.5 h-2.5 rounded-full border border-white/20"
-                            style={{ background: c }}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Fancy Button */}
                   <button
                     type="button"
-                    onClick={() => setCurrentView('themes')}
-                    className="py-2 px-3.5 rounded-xl themed-btn font-bold text-xs flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 shadow-sm"
+                    onClick={() => onSelectGraphicsQuality('fancy')}
+                    className={`p-3 rounded-2xl border text-left transition-all relative overflow-hidden flex flex-col justify-between ${
+                      graphicsQuality === 'fancy'
+                        ? 'border-pink-500/60 bg-pink-500/15 shadow-sm ring-1 ring-pink-500/30'
+                        : 'border-inherit bg-black/10 hover:border-zinc-500/40 opacity-80 hover:opacity-100'
+                    }`}
                   >
-                    <span>Customize UI</span>
-                    <ChevronRight size={14} />
+                    <div className="flex items-center justify-between w-full mb-1">
+                      <div className="flex items-center gap-1.5 font-bold text-xs">
+                        <Sparkles size={14} className="text-pink-400" />
+                        <span>Fancy</span>
+                      </div>
+                      {graphicsQuality === 'fancy' && (
+                        <div className="w-4 h-4 rounded-full bg-pink-500 text-white flex items-center justify-center">
+                          <Check size={10} strokeWidth={3} />
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-[10px] opacity-70 leading-tight">
+                      Dynamic effects (Default)
+                    </p>
+                  </button>
+
+                  {/* Smooth Button */}
+                  <button
+                    type="button"
+                    onClick={() => onSelectGraphicsQuality('smooth')}
+                    className={`p-3 rounded-2xl border text-left transition-all relative overflow-hidden flex flex-col justify-between ${
+                      graphicsQuality === 'smooth'
+                        ? 'border-indigo-500/60 bg-indigo-500/15 shadow-sm ring-1 ring-indigo-500/30'
+                        : 'border-inherit bg-black/10 hover:border-zinc-500/40 opacity-80 hover:opacity-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full mb-1">
+                      <div className="flex items-center gap-1.5 font-bold text-xs">
+                        <Zap size={14} className="text-indigo-400" />
+                        <span>Smooth</span>
+                      </div>
+                      {graphicsQuality === 'smooth' && (
+                        <div className="w-4 h-4 rounded-full bg-indigo-500 text-white flex items-center justify-center">
+                          <Check size={10} strokeWidth={3} />
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-[10px] opacity-70 leading-tight">
+                      More performance
+                    </p>
                   </button>
                 </div>
               </div>

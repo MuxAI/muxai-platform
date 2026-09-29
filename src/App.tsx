@@ -57,6 +57,7 @@ import {
 import {
   downloadSLMWeights,
   generateSLMReply,
+  stopSLMGeneration,
   SLMTelemetryData,
   DownloadProgressInfo,
 } from './lib/slmEngine';
@@ -180,6 +181,18 @@ export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const activeIdRef = useRef<string | null>(null);
+  const latestMessagesRef = useRef<Message[]>([]);
+  const activeSLMConvIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    activeIdRef.current = activeId;
+  }, [activeId]);
+
+  useEffect(() => {
+    latestMessagesRef.current = messages;
+  }, [messages]);
+
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsSidebarOpen, setSettingsSidebarOpen] = useState(false);
@@ -424,7 +437,27 @@ export default function App() {
     return () => clearInterval(t);
   }, []);
 
+  const persistMessages = (convId: string, msgs: Message[]) => {
+    const updated = updateConversation(convId, (c) => ({ ...c, messages: msgs }));
+    setConversations(updated);
+  };
+
+  // Stop ongoing SLM generation immediately and commit the partial/completed response to conversation storage
+  const stopAndCommitSLMGeneration = () => {
+    if (!isSLMGenerating) return;
+    stopSLMGeneration();
+    setIsSLMGenerating(false);
+
+    const targetConvId = activeSLMConvIdRef.current || activeIdRef.current;
+    if (targetConvId && latestMessagesRef.current.length > 0) {
+      const msgsToSave = [...latestMessagesRef.current];
+      persistMessages(targetConvId, msgsToSave);
+    }
+    activeSLMConvIdRef.current = null;
+  };
+
   const handleNew = () => {
+    stopAndCommitSLMGeneration();
     const conv = createConversation('New chat', selectedPersona);
     const convs = loadConversations();
     setConversations(convs);
@@ -435,6 +468,11 @@ export default function App() {
   };
 
   const handleSelect = (id: string) => {
+    if (id === activeId) {
+      setSidebarOpen(false);
+      return;
+    }
+    stopAndCommitSLMGeneration();
     setActiveId(id);
     setSidebarOpen(false);
     setError('');
@@ -459,11 +497,6 @@ export default function App() {
       setMessages(remaining[0]?.messages || []);
     }
     setDeleteTarget(null);
-  };
-
-  const persistMessages = (convId: string, msgs: Message[]) => {
-    const updated = updateConversation(convId, (c) => ({ ...c, messages: msgs }));
-    setConversations(updated);
   };
 
   const maybeGenerateTitle = async (convId: string, msgs: Message[], personaId: string) => {
@@ -492,6 +525,7 @@ export default function App() {
   };
 
   const applyPersonaSelection = (id: string) => {
+    stopAndCommitSLMGeneration();
     setSelectedPersona(id);
     if (activeId) {
       updateConversation(activeId, (c) => ({ ...c, personaId: id }));
@@ -551,6 +585,12 @@ export default function App() {
   const handleOpenSLMManage = (spec: SLMModelSpec) => {
     setSlmManageSpec(spec);
     setIsSLMManageOpen(true);
+  };
+
+  // Force stop in-progress real-time SLM generation
+  const handleStopSLM = () => {
+    stopAndCommitSLMGeneration();
+    showToast('Generation stopped');
   };
 
   // Mascot Puppet: scroll to SLM section in companion grid
@@ -1210,8 +1250,8 @@ export default function App() {
     }
   };
 
-  // Retry a user message
-  const handleRetry = async (msgIndex: number, userMessage: Message) => {
+  // Retry or edit a user message
+  const handleRetry = async (msgIndex: number, userMessage: Message, editedContent?: string) => {
     let convId = activeId;
     if (!convId) return;
 
@@ -1221,14 +1261,24 @@ export default function App() {
 
     if (loading || (!isOnline && !activePersonaObj?.isSLM)) return;
 
-    const trimmedMsgs = messages.slice(0, msgIndex + 1);
+    const targetUserMsg: Message = editedContent
+      ? { ...userMessage, content: editedContent.trim() }
+      : userMessage;
+
+    const trimmedMsgs = editedContent
+      ? [...messages.slice(0, msgIndex), targetUserMsg]
+      : messages.slice(0, msgIndex + 1);
+
+    latestMessagesRef.current = trimmedMsgs;
     setMessages(trimmedMsgs);
     persistMessages(convId, trimmedMsgs);
 
     const personaPrompt = getSystemPromptForPersona(personaToUse);
 
     if (activePersonaObj?.isSLM) {
+      stopAndCommitSLMGeneration();
       setIsSLMGenerating(true);
+      activeSLMConvIdRef.current = convId;
       setError('');
 
       const slmModelId = activePersonaObj.slmModelId || personaToUse;
@@ -1242,11 +1292,13 @@ export default function App() {
         personaId: personaToUse,
         content: '',
       };
-      setMessages([...trimmedMsgs, initialAssistantMsg]);
+      const initialMsgs = [...trimmedMsgs, initialAssistantMsg];
+      latestMessagesRef.current = initialMsgs;
+      setMessages(initialMsgs);
 
       try {
         const { text: finalText, telemetry } = await generateSLMReply(
-          userMessage.content,
+          targetUserMsg.content,
           conversationHistory,
           slmModelId,
           modelOptions.maxTokens ?? 512,
@@ -1255,40 +1307,66 @@ export default function App() {
             setSlmTelemetry(liveTelemetry);
             setMessages((prev) => {
               const last = prev[prev.length - 1];
+              let copy: Message[];
               if (last && last.role === 'assistant') {
-                const copy = [...prev];
+                copy = [...prev];
                 copy[copy.length - 1] = {
                   ...last,
                   role: 'assistant',
                   personaId: personaToUse,
                   content: accumulated,
                 };
-                return copy;
+              } else {
+                copy = [
+                  ...prev,
+                  {
+                    role: 'assistant',
+                    personaId: personaToUse,
+                    content: accumulated,
+                  },
+                ];
               }
-              return [
-                ...prev,
-                {
-                  role: 'assistant',
-                  personaId: personaToUse,
-                  content: accumulated,
-                },
-              ];
+              latestMessagesRef.current = copy;
+              return copy;
             });
           }
         );
 
         setSlmTelemetry(telemetry);
+        const resolvedText =
+          finalText ||
+          latestMessagesRef.current[latestMessagesRef.current.length - 1]?.content ||
+          '';
         const finalMsgs: Message[] = [
           ...trimmedMsgs,
-          { role: 'assistant', personaId: personaToUse, content: finalText },
+          { role: 'assistant', personaId: personaToUse, content: resolvedText },
         ];
-        setMessages(finalMsgs);
         persistMessages(convId, finalMsgs);
+        if (activeIdRef.current === convId) {
+          setMessages(finalMsgs);
+        }
         recordMessage();
       } catch (err: any) {
-        setError(err?.message || 'Error running on-device SLM');
+        const resolvedText =
+          latestMessagesRef.current[latestMessagesRef.current.length - 1]?.content || '';
+        if (resolvedText) {
+          const finalMsgs: Message[] = [
+            ...trimmedMsgs,
+            { role: 'assistant', personaId: personaToUse, content: resolvedText },
+          ];
+          persistMessages(convId, finalMsgs);
+          if (activeIdRef.current === convId) {
+            setMessages(finalMsgs);
+          }
+        }
+        if (!err?.message?.includes('aborted') && !err?.message?.includes('interrupt')) {
+          setError(err?.message || 'Error running on-device SLM');
+        }
       } finally {
         setIsSLMGenerating(false);
+        if (activeSLMConvIdRef.current === convId) {
+          activeSLMConvIdRef.current = null;
+        }
       }
       return;
     }
@@ -1503,8 +1581,10 @@ export default function App() {
 
     // If active persona is an on-device SLM, run browser-based inference with live telemetry
     if (activePersonaObj?.isSLM) {
+      stopAndCommitSLMGeneration();
       persistMessages(convId, newMsgs);
       setIsSLMGenerating(true);
+      activeSLMConvIdRef.current = convId;
       setError('');
 
       const slmModelId = activePersonaObj.slmModelId || personaToUse;
@@ -1518,7 +1598,9 @@ export default function App() {
         personaId: personaToUse,
         content: '',
       };
-      setMessages([...newMsgs, initialAssistantMsg]);
+      const initialMsgs = [...newMsgs, initialAssistantMsg];
+      latestMessagesRef.current = initialMsgs;
+      setMessages(initialMsgs);
 
       try {
         const { text: finalText, telemetry } = await generateSLMReply(
@@ -1531,41 +1613,67 @@ export default function App() {
             setSlmTelemetry(liveTelemetry);
             setMessages((prev) => {
               const last = prev[prev.length - 1];
+              let copy: Message[];
               if (last && last.role === 'assistant') {
-                const copy = [...prev];
+                copy = [...prev];
                 copy[copy.length - 1] = {
                   ...last,
                   role: 'assistant',
                   personaId: personaToUse,
                   content: accumulated,
                 };
-                return copy;
+              } else {
+                copy = [
+                  ...prev,
+                  {
+                    role: 'assistant',
+                    personaId: personaToUse,
+                    content: accumulated,
+                  },
+                ];
               }
-              return [
-                ...prev,
-                {
-                  role: 'assistant',
-                  personaId: personaToUse,
-                  content: accumulated,
-                },
-              ];
+              latestMessagesRef.current = copy;
+              return copy;
             });
           }
         );
 
         setSlmTelemetry(telemetry);
+        const resolvedText =
+          finalText ||
+          latestMessagesRef.current[latestMessagesRef.current.length - 1]?.content ||
+          '';
         const finalMsgs: Message[] = [
           ...newMsgs,
-          { role: 'assistant', personaId: personaToUse, content: finalText },
+          { role: 'assistant', personaId: personaToUse, content: resolvedText },
         ];
-        setMessages(finalMsgs);
         persistMessages(convId, finalMsgs);
+        if (activeIdRef.current === convId) {
+          setMessages(finalMsgs);
+        }
         recordMessage();
         maybeGenerateTitle(convId, finalMsgs, personaToUse);
       } catch (err: any) {
-        setError(err?.message || 'Error running on-device SLM.');
+        const resolvedText =
+          latestMessagesRef.current[latestMessagesRef.current.length - 1]?.content || '';
+        if (resolvedText) {
+          const finalMsgs: Message[] = [
+            ...newMsgs,
+            { role: 'assistant', personaId: personaToUse, content: resolvedText },
+          ];
+          persistMessages(convId, finalMsgs);
+          if (activeIdRef.current === convId) {
+            setMessages(finalMsgs);
+          }
+        }
+        if (!err?.message?.includes('aborted') && !err?.message?.includes('interrupt')) {
+          setError(err?.message || 'Error running on-device SLM.');
+        }
       } finally {
         setIsSLMGenerating(false);
+        if (activeSLMConvIdRef.current === convId) {
+          activeSLMConvIdRef.current = null;
+        }
       }
       return;
     }
@@ -1967,6 +2075,11 @@ export default function App() {
                   personaId={currentPersonaId}
                   isAutoChat={Boolean(autoConfig) || activeConv?.mode === 'ai_duel'}
                   onRetry={msg.role === 'user' ? () => handleRetry(i, msg) : undefined}
+                  onEdit={
+                    msg.role === 'user'
+                      ? (newContent: string) => handleRetry(i, msg, newContent)
+                      : undefined
+                  }
                 />
               ))}
             </AnimatePresence>
@@ -2039,10 +2152,13 @@ export default function App() {
           <ChatInput
             onSend={handleSend}
             onGenerateImage={handleGenerateImage}
-            disabled={loading || isSLMGenerating || rateInfo.blocked}
+            disabled={loading || rateInfo.blocked}
             isOnline={isOnline || Boolean(currentPersonaInfo.isSLM)}
             options={modelOptions}
             onOptionsChange={setModelOptions}
+            isSLM={Boolean(currentPersonaInfo.isSLM)}
+            isGenerating={isSLMGenerating}
+            onStop={handleStopSLM}
             slmStatusBar={
               currentPersonaInfo.isSLM ? (
                 <SLMStatusBar

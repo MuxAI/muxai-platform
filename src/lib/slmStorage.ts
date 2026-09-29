@@ -22,8 +22,19 @@ export function setSLMDownloaded(modelId: string, downloaded: boolean): void {
   } catch {}
 }
 
-export function deleteSLMModel(modelId: string): void {
+export async function deleteSLMModel(modelId: string): Promise<void> {
   setSLMDownloaded(modelId, false);
+  // Clear caches if supported in browser
+  if (typeof window !== 'undefined' && 'caches' in window) {
+    try {
+      const keys = await caches.keys();
+      for (const k of keys) {
+        if (k.toLowerCase().includes('transformers') || k.toLowerCase().includes('onnx')) {
+          await caches.delete(k);
+        }
+      }
+    } catch {}
+  }
 }
 
 export interface SLMModelSpec {
@@ -31,6 +42,7 @@ export interface SLMModelSpec {
   name: string;
   personaId: string;
   modelId: string;
+  huggingFaceModelId: string;
   architecture: string;
   sizeString: string;
   sizeMB: number;
@@ -43,6 +55,7 @@ export const SLM_MODELS_LIST: SLMModelSpec[] = [
     name: 'Serafina v1.1-mini',
     personaId: 'Sera11_mini',
     modelId: 'SmolLM2-135M-Instruct',
+    huggingFaceModelId: 'HuggingFaceTB/SmolLM2-135M-Instruct',
     architecture: 'SmolLM2 (135M)',
     sizeString: '135M (~145 MB)',
     sizeMB: 145,
@@ -53,6 +66,7 @@ export const SLM_MODELS_LIST: SLMModelSpec[] = [
     name: 'Serafina v1.2-mini',
     personaId: 'Sera12_mini',
     modelId: 'SmolLM2-360M-Instruct',
+    huggingFaceModelId: 'HuggingFaceTB/SmolLM2-360M-Instruct',
     architecture: 'SmolLM2 (360M)',
     sizeString: '360M (~375 MB)',
     sizeMB: 375,
@@ -63,6 +77,7 @@ export const SLM_MODELS_LIST: SLMModelSpec[] = [
     name: 'Distil v0.5-mini',
     personaId: 'Distil05_mini',
     modelId: 'Qwen2.5-0.5B-Instruct',
+    huggingFaceModelId: 'onnx-community/Qwen2.5-0.5B-Instruct',
     architecture: 'Qwen2.5 (0.5B)',
     sizeString: '0.5B (~495 MB)',
     sizeMB: 495,
@@ -75,5 +90,5 @@ export function getSLMSpecByPersonaId(personaId: string): SLMModelSpec | undefin
 }
 
 export function getSLMSpecByModelId(modelId: string): SLMModelSpec | undefined {
-  return SLM_MODELS_LIST.find((m) => m.modelId === modelId);
+  return SLM_MODELS_LIST.find((m) => m.modelId === modelId || m.id === modelId || m.personaId === modelId);
 }
