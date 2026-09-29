@@ -1,10 +1,12 @@
-# MuxAI — Privacy-First Conversational Intelligence & On-Device SLM Platform
+# MuxAI Platform
 
-MuxAI is a next-generation, local-first conversational AI web application featuring browser-based **Small Language Models (SLMs)** running client-side via WebGPU and WebAssembly, multimodal remote LLM connections, self-hosted Ollama server integration, and decentralized customization.
+MuxAI Persona Studio is a privacy-focused, local-first conversational AI web application featuring browser-based **Small Language Models (SLMs)** running client-side via WebGPU and WebAssembly, multimodal remote LLM connections, self-hosted Ollama server integration, and decentralized customization.
 
-Derived, upgraded, and upscaled from the original open-source [Serafina web platform](https://github.com/dwmk/serafina) created by **Dewan Mukto**, MuxAI evolves that foundation into a full-stack, local-first intelligence environment with complete user data sovereignty.
+![](https://muxai.vercel.app/og-image.jpg)
 
 ---
+
+### [🌐 [Visit the website]](https://muxai.vercel.app) |   [📺 [Watch a demo]](https://www.youtube.com/watch?v=a2lkRuWtyOM)
 
 ## 🚀 Key Features & Architectural Highlights
 
