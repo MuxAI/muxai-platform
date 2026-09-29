@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -15,6 +15,8 @@ import {
   User,
   Sparkles,
   RotateCw,
+  Pencil,
+  X,
 } from 'lucide-react';
 import { Message } from '../types';
 import { Logo, UserAvatar } from './Logo';
@@ -24,6 +26,7 @@ interface MessageItemProps {
   personaId: string;
   isAutoChat?: boolean;
   onRetry?: () => void;
+  onEdit?: (newContent: string) => void;
 }
 
 export function MessageItem({
@@ -31,11 +34,37 @@ export function MessageItem({
   personaId,
   isAutoChat = false,
   onRetry,
+  onEdit,
 }: MessageItemProps) {
   const [copied, setCopied] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isHovered, setIsHovered] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(message.content);
+
+  useEffect(() => {
+    setEditText(message.content);
+  }, [message.content]);
+
+  const handleStartEdit = () => {
+    setEditText(message.content);
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setEditText(message.content);
+    setIsEditing(false);
+  };
+
+  const handleConfirmEdit = () => {
+    const trimmed = editText.trim();
+    if (!trimmed) return;
+    setIsEditing(false);
+    if (onEdit) {
+      onEdit(trimmed);
+    }
+  };
 
   const isUser = message.role === 'user';
   const effectivePersona = message.personaId || personaId;
@@ -86,8 +115,51 @@ export function MessageItem({
               : 'themed-ai-bubble rounded-tl-sm border'
           }`}
         >
-          {/* Header indicator in auto mode or chess move */}
-          {isAutoChat && message.personaId && (
+          {isUser && isEditing ? (
+            <div className="flex flex-col gap-2 min-w-[240px] sm:min-w-[320px]">
+              <textarea
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleConfirmEdit();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    handleCancelEdit();
+                  }
+                }}
+                autoFocus
+                rows={Math.min(Math.max(editText.split('\n').length, 2), 8)}
+                className="w-full bg-black/25 text-white rounded-xl p-3 text-sm sm:text-base leading-relaxed border border-white/20 focus:border-white/50 outline-none resize-none shadow-inner"
+                placeholder="Edit message..."
+              />
+              <div className="flex items-center justify-end text-xs pt-0.5">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white/80 hover:text-white flex items-center gap-1 transition-all"
+                  >
+                    <X size={12} />
+                    <span>Cancel</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmEdit}
+                    disabled={!editText.trim()}
+                    className="px-3 py-1 rounded-lg bg-white text-zinc-900 font-semibold hover:bg-white/90 active:scale-95 flex items-center gap-1 transition-all disabled:opacity-40 shadow-sm cursor-pointer"
+                  >
+                    <Check size={12} />
+                    <span>Send</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Header indicator in auto mode or chess move */}
+              {isAutoChat && message.personaId && (
             <div className="text-[11px] font-bold uppercase tracking-wider mb-1.5 opacity-70 flex items-center gap-1">
               <Sparkles size={11} className="text-pink-500" />
               <span>{message.personaId}</span>
@@ -231,6 +303,18 @@ export function MessageItem({
                   )}
                 </button>
 
+                {onEdit && (
+                  <button
+                    type="button"
+                    onClick={handleStartEdit}
+                    className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white/90 hover:text-white flex items-center gap-1.5 transition-all shadow-sm"
+                    title="Edit message inside bubble and resend"
+                  >
+                    <Pencil size={12} />
+                    <span className="text-[11px] font-medium">Edit</span>
+                  </button>
+                )}
+
                 {onRetry && (
                   <button
                     type="button"
@@ -271,6 +355,8 @@ export function MessageItem({
                 <span className="text-[10px]">{speaking ? 'Stop' : 'Speak'}</span>
               </button>
             </div>
+          )}
+            </>
           )}
         </div>
 

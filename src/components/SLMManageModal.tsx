@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { Cpu, HardDrive, Trash2, X, CheckCircle2, AlertCircle } from 'lucide-react';
 import { SLMModelSpec, isSLMDownloaded, deleteSLMModel } from '../lib/slmStorage';
+import { clearPipelineCache } from '../lib/slmEngine';
 
 interface SLMManageModalProps {
   isOpen: boolean;
@@ -19,8 +20,9 @@ export function SLMManageModal({
 
   const isDownloaded = isSLMDownloaded(modelSpec.modelId);
 
-  const handleDelete = () => {
-    deleteSLMModel(modelSpec.modelId);
+  const handleDelete = async () => {
+    await deleteSLMModel(modelSpec.modelId);
+    clearPipelineCache(modelSpec.modelId);
     if (onModelDeleted) {
       onModelDeleted();
     }

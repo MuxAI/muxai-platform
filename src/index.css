@@ -50,9 +50,9 @@
   --new-chat-bg: #4f46e5;
   --new-chat-text: #ffffff;
   --new-chat-hover: #4338ca;
-  --online-bg: #f0fdf4;
-  --online-border: #dcfce7;
-  --online-text: #15803d;
+  --online-bg: #f5f3ff;
+  --online-border: #ddd6fe;
+  --online-text: #7c3aed;
   --offline-bg: #f1f5f9;
   --offline-border: #e2e8f0;
   --offline-text: #64748b;
@@ -81,7 +81,7 @@
   --accent: #4f46e5;
   --aurora-1: rgba(79, 70, 229, 0.06);
   --aurora-2: rgba(59, 130, 246, 0.05);
-  --aurora-3: rgba(16, 185, 129, 0.04);
+  --aurora-3: rgba(168, 85, 247, 0.04);
   --grid-color: rgba(148, 163, 184, 0.08);
   --block-screen-bg: rgba(248, 250, 252, 0.96);
   --theme-sidebar-bg: rgba(255, 255, 255, 0.96);
@@ -222,4 +222,13 @@ body {
   background-image: linear-gradient(var(--grid-color) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
   background-size: 36px 36px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.08s ease-out forwards;
 }

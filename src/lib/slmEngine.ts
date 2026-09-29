@@ -1,7 +1,15 @@
-// Browser-based Small Language Model (SLM) Execution Engine & Telemetry
+// Browser-based Small Language Model (SLM) Execution Engine & Live Telemetry
+// Powered by Hugging Face Transformers.js (@huggingface/transformers) with WebGPU & ONNX WASM
 
+import { pipeline, TextStreamer, env, InterruptableStoppingCriteria } from '@huggingface/transformers';
 import { Message } from '../types';
 import { setSLMDownloaded } from './slmStorage';
+
+// Configure Transformers.js for browser execution
+if (typeof window !== 'undefined') {
+  env.allowLocalModels = false;
+  env.useBrowserCache = true;
+}
 
 export interface SLMTelemetryData {
   tokensPerSec: number;
@@ -17,35 +25,227 @@ export interface DownloadProgressInfo {
   done: boolean;
 }
 
+export function getHuggingFaceModelId(modelId: string): string {
+  if (modelId.includes('135M') || modelId.includes('Sera11')) {
+    return 'HuggingFaceTB/SmolLM2-135M-Instruct';
+  }
+  if (modelId.includes('360M') || modelId.includes('Sera12')) {
+    return 'HuggingFaceTB/SmolLM2-360M-Instruct';
+  }
+  if (modelId.includes('0.5B') || modelId.includes('Qwen') || modelId.includes('Distil05')) {
+    return 'onnx-community/Qwen2.5-0.5B-Instruct';
+  }
+  return 'HuggingFaceTB/SmolLM2-135M-Instruct';
+}
+
+function getOptimalDevice(): 'webgpu' | 'wasm' {
+  if (typeof navigator !== 'undefined' && 'gpu' in navigator && (navigator as any).gpu) {
+    return 'webgpu';
+  }
+  return 'wasm';
+}
+
+function getSLMSystemPrompt(modelId: string): string {
+  if (modelId.includes('135M') || modelId.includes('Sera11')) {
+    return 'You are Seraphina v1.1-mini, an intelligent, empathetic, and philosophical on-device AI companion running directly in the browser via SmolLM2-135M. Answer questions directly, thoughtfully, and concisely.';
+  }
+  if (modelId.includes('360M') || modelId.includes('Sera12')) {
+    return 'You are Seraphina v1.2-mini, an agile, articulate, and thoughtful on-device AI companion running directly in the browser via SmolLM2-360M. Answer questions with nuance, depth, and clarity.';
+  }
+  return 'You are Distil v0.5-mini, a sharp, technical, and pragmatic systems engineer and AI running directly in the browser via Qwen2.5-0.5B. Give direct, high-value, and accurate answers or code solutions.';
+}
+
+// In-memory cache of initialized pipelines and loading promises
+const pipelineCache = new Map<string, any>();
+const loadingPromises = new Map<string, Promise<any>>();
+let activeStoppingCriteria: any = null;
+
+export function stopSLMGeneration(): void {
+  if (activeStoppingCriteria) {
+    try {
+      activeStoppingCriteria.interrupt();
+    } catch (e) {
+      console.warn('[SLM] Failed to interrupt stopping criteria:', e);
+    }
+    activeStoppingCriteria = null;
+  }
+}
+
+export function clearPipelineCache(modelId?: string): void {
+  stopSLMGeneration();
+  if (modelId) {
+    const hfId = getHuggingFaceModelId(modelId);
+    pipelineCache.delete(modelId);
+    pipelineCache.delete(hfId);
+    loadingPromises.delete(modelId);
+    loadingPromises.delete(hfId);
+  } else {
+    pipelineCache.clear();
+    loadingPromises.clear();
+  }
+}
+
 /**
- * Downloads the SLM model weights into browser persistent storage with realistic progress.
+ * Downloads the real SLM ONNX model weights and tokenizer from Hugging Face into browser CacheStorage.
+ * Reports real download progress bytes and percentages.
  */
 export async function downloadSLMWeights(
   modelId: string,
   totalMB: number,
   onProgress: (p: DownloadProgressInfo) => void
 ): Promise<void> {
-  const steps = 24;
-  const intervalMs = 90; // ~2.2s total smooth download simulation
+  const hfModelId = getHuggingFaceModelId(modelId);
+  const device = getOptimalDevice();
 
-  for (let i = 1; i <= steps; i++) {
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
-    const percent = Math.min(Math.round((i / steps) * 100), 100);
-    const downloadedMB = parseFloat(((percent / 100) * totalMB).toFixed(1));
+  // Progress tracking across all downloaded model and tokenizer files
+  const fileProgress: Record<string, { loaded: number; total: number }> = {};
+  let lastReportTime = 0;
+
+  const progressCallback = (item: any) => {
+    if (!item) return;
+
+    if (item.status === 'progress' && item.file) {
+      fileProgress[item.file] = {
+        loaded: item.loaded || 0,
+        total: item.total || 0,
+      };
+
+      let sumLoaded = 0;
+      let sumTotal = 0;
+      for (const f of Object.values(fileProgress)) {
+        sumLoaded += f.loaded;
+        sumTotal += f.total;
+      }
+
+      const targetTotal = Math.max(sumTotal, totalMB * 1024 * 1024);
+      const downloadedMB = parseFloat((sumLoaded / (1024 * 1024)).toFixed(1));
+      const percent = Math.min(Math.round((sumLoaded / targetTotal) * 100), 99);
+
+      const now = Date.now();
+      if (now - lastReportTime > 40 || percent === 100) {
+        lastReportTime = now;
+        onProgress({
+          percent,
+          downloadedMB,
+          totalMB,
+          done: false,
+        });
+      }
+    }
+  };
+
+  try {
+    let pipe: any;
+    try {
+      pipe = await pipeline('text-generation', hfModelId, {
+        dtype: 'q4',
+        device,
+        progress_callback: progressCallback,
+      });
+    } catch (gpuErr: any) {
+      if (device === 'webgpu') {
+        console.warn(`[SLM] WebGPU not available or failed (${gpuErr?.message || gpuErr}), falling back to WASM.`);
+        pipe = await pipeline('text-generation', hfModelId, {
+          dtype: 'q4',
+          device: 'wasm',
+          progress_callback: progressCallback,
+        });
+      } else {
+        throw gpuErr;
+      }
+    }
+
+    pipelineCache.set(hfModelId, pipe);
+    pipelineCache.set(modelId, pipe);
+
+    // Save persistent downloaded status
+    setSLMDownloaded(modelId, true);
+
     onProgress({
-      percent,
-      downloadedMB,
+      percent: 100,
+      downloadedMB: totalMB,
       totalMB,
-      done: i === steps,
+      done: true,
     });
+  } catch (err: any) {
+    console.error(`[SLM Download Failed for ${hfModelId}]:`, err);
+    throw new Error(
+      `Failed to download ${hfModelId} weights: ${err?.message || err}. Please ensure internet connectivity to Hugging Face.`
+    );
   }
-
-  // Persist into browser storage
-  setSLMDownloaded(modelId, true);
 }
 
 /**
- * Generates an on-device response streaming tokens with live telemetry
+ * Retrieves an active pipeline or loads it from browser cache.
+ */
+async function getOrLoadPipeline(
+  modelId: string,
+  onProgress?: (p: DownloadProgressInfo) => void
+): Promise<any> {
+  const hfModelId = getHuggingFaceModelId(modelId);
+
+  if (pipelineCache.has(hfModelId)) {
+    return pipelineCache.get(hfModelId);
+  }
+  if (pipelineCache.has(modelId)) {
+    return pipelineCache.get(modelId);
+  }
+
+  // Deduplicate concurrent loads
+  if (loadingPromises.has(hfModelId)) {
+    return loadingPromises.get(hfModelId);
+  }
+
+  const device = getOptimalDevice();
+  const loadPromise = (async () => {
+    try {
+      let pipe: any;
+      const progressCb = (item: any) => {
+        if (onProgress && item && item.status === 'progress') {
+          const percent = Math.min(Math.round(item.progress || 0), 100);
+          onProgress({
+            percent,
+            downloadedMB: parseFloat(((item.loaded || 0) / (1024 * 1024)).toFixed(1)),
+            totalMB: parseFloat(((item.total || 0) / (1024 * 1024)).toFixed(1)),
+            done: item.status === 'done',
+          });
+        }
+      };
+
+      try {
+        pipe = await pipeline('text-generation', hfModelId, {
+          dtype: 'q4',
+          device,
+          progress_callback: progressCb,
+        });
+      } catch (gpuErr: any) {
+        if (device === 'webgpu') {
+          console.warn(`[SLM] WebGPU failed (${gpuErr?.message || gpuErr}), falling back to WASM.`);
+          pipe = await pipeline('text-generation', hfModelId, {
+            dtype: 'q4',
+            device: 'wasm',
+            progress_callback: progressCb,
+          });
+        } else {
+          throw gpuErr;
+        }
+      }
+
+      pipelineCache.set(hfModelId, pipe);
+      pipelineCache.set(modelId, pipe);
+      setSLMDownloaded(modelId, true);
+      return pipe;
+    } finally {
+      loadingPromises.delete(hfModelId);
+    }
+  })();
+
+  loadingPromises.set(hfModelId, loadPromise);
+  return loadPromise;
+}
+
+/**
+ * Generates an on-device response using the real local model, streaming tokens with live telemetry.
  */
 export async function generateSLMReply(
   prompt: string,
@@ -58,112 +258,113 @@ export async function generateSLMReply(
   const startTime = performance.now();
   let firstTokenTime: number | null = null;
 
-  // Build persona content tailored to SLM persona
-  const generatedTokens = craftSLMResponse(prompt, history, modelId, temperature, maxTokens);
+  const pipe = await getOrLoadPipeline(modelId);
+
+  // Format conversational context with appropriate SLM system prompt
+  const systemPrompt = getSLMSystemPrompt(modelId);
+  const formattedMessages: Array<{ role: string; content: string }> = [
+    { role: 'system', content: systemPrompt },
+  ];
+
+  if (history && history.length > 0) {
+    // Keep recent history to preserve context while respecting memory boundaries
+    const recent = history.slice(-6);
+    for (const m of recent) {
+      if (m.content && m.content.trim()) {
+        formattedMessages.push({
+          role: m.role === 'assistant' ? 'assistant' : 'user',
+          content: m.content.trim(),
+        });
+      }
+    }
+  }
+
+  // Ensure current user prompt is present as the latest message
+  const lastMsg = formattedMessages[formattedMessages.length - 1];
+  if (!lastMsg || lastMsg.role !== 'user' || lastMsg.content !== prompt.trim()) {
+    formattedMessages.push({
+      role: 'user',
+      content: prompt.trim(),
+    });
+  }
 
   let accumulated = '';
   let tokenCount = 0;
 
-  for (let i = 0; i < generatedTokens.length; i++) {
-    const token = generatedTokens[i];
-    accumulated += token;
-    tokenCount++;
+  // Real-time token streaming callback via Transformers.js TextStreamer
+  const streamer = new TextStreamer(pipe.tokenizer, {
+    skip_prompt: true,
+    skip_special_tokens: true,
+    callback_function: (chunk: string) => {
+      if (!chunk) return;
+      accumulated += chunk;
+      tokenCount++;
 
-    const now = performance.now();
-    if (firstTokenTime === null) {
-      firstTokenTime = now;
+      const now = performance.now();
+      if (firstTokenTime === null) {
+        firstTokenTime = now;
+      }
+
+      const elapsedTotalSec = (now - startTime) / 1000;
+      const ttftMs = Math.round(firstTokenTime - startTime);
+      const generationSec = Math.max((now - firstTokenTime) / 1000, 0.05);
+      const tokensPerSec = parseFloat((tokenCount / generationSec).toFixed(1));
+
+      const telemetry: SLMTelemetryData = {
+        tokensPerSec: isNaN(tokensPerSec) || tokensPerSec <= 0 ? 25 : tokensPerSec,
+        ttftMs: Math.max(ttftMs, 10),
+        totalTimeSec: parseFloat(elapsedTotalSec.toFixed(2)),
+        tokenCount,
+      };
+
+      onToken(chunk, accumulated, telemetry);
+    },
+  });
+
+  const stopping_criteria = new InterruptableStoppingCriteria();
+  activeStoppingCriteria = stopping_criteria;
+
+  try {
+    const output = await pipe(formattedMessages, {
+      max_new_tokens: maxTokens || 256,
+      temperature: Math.max(temperature || 0.6, 0.1),
+      top_p: 0.9,
+      do_sample: true,
+      streamer,
+      stopping_criteria,
+    });
+
+    let finalText = accumulated.trim();
+    if (!finalText && output && output[0]) {
+      const gen = output[0].generated_text;
+      if (Array.isArray(gen)) {
+        const lastItem = gen[gen.length - 1];
+        finalText = (lastItem?.content || '').trim();
+      } else if (typeof gen === 'string') {
+        finalText = gen.trim();
+      }
     }
 
-    const elapsedTotalSec = (now - startTime) / 1000;
-    const ttftMs = Math.round(firstTokenTime - startTime);
-    const generationSec = Math.max((now - firstTokenTime) / 1000, 0.05);
-    const tokensPerSec = parseFloat((tokenCount / generationSec).toFixed(1));
+    const finalNow = performance.now();
+    const finalTotalSec = (finalNow - startTime) / 1000;
+    const finalTtft = Math.round((firstTokenTime || finalNow) - startTime);
+    const genSec = Math.max((finalNow - (firstTokenTime || finalNow)) / 1000, 0.05);
+    const finalTokensPerSec = parseFloat((tokenCount / genSec).toFixed(1));
 
-    const telemetry: SLMTelemetryData = {
-      tokensPerSec: isNaN(tokensPerSec) ? 24.5 : Math.min(tokensPerSec, 95),
-      ttftMs: Math.max(ttftMs, 60),
-      totalTimeSec: parseFloat(elapsedTotalSec.toFixed(2)),
-      tokenCount,
+    const finalTelemetry: SLMTelemetryData = {
+      tokensPerSec: isNaN(finalTokensPerSec) || finalTokensPerSec <= 0 ? 25 : finalTokensPerSec,
+      ttftMs: Math.max(finalTtft, 10),
+      totalTimeSec: parseFloat(finalTotalSec.toFixed(2)),
+      tokenCount: Math.max(tokenCount, finalText.split(/\s+/).filter(Boolean).length),
     };
 
-    onToken(token, accumulated, telemetry);
-
-    // Realistic streaming speed for on-device SLM (~25-45 tokens/sec = ~22-38ms per token)
-    const tokenDelay = Math.floor(Math.random() * 14) + 18;
-    await new Promise((r) => setTimeout(r, tokenDelay));
-  }
-
-  const finalNow = performance.now();
-  const finalTotalSec = (finalNow - startTime) / 1000;
-  const finalTtft = Math.round((firstTokenTime || finalNow) - startTime);
-  const genSec = Math.max((finalNow - (firstTokenTime || finalNow)) / 1000, 0.08);
-
-  const finalTelemetry: SLMTelemetryData = {
-    tokensPerSec: parseFloat((tokenCount / genSec).toFixed(1)),
-    ttftMs: Math.max(finalTtft, 60),
-    totalTimeSec: parseFloat(finalTotalSec.toFixed(2)),
-    tokenCount,
-  };
-
-  return { text: accumulated, telemetry: finalTelemetry };
-}
-
-function craftSLMResponse(
-  userText: string,
-  _history: Message[],
-  modelId: string,
-  _temperature: number,
-  maxTokens: number
-): string[] {
-  const query = (userText || '').trim();
-  const lower = query.toLowerCase();
-
-  let responseBody = '';
-
-  if (modelId.includes('135M')) {
-    // Serafina v1.1-mini (SmolLM2-135M)
-    if (lower.includes('hello') || lower.includes('hi') || lower.includes('hey')) {
-      responseBody = `Hello! I'm **Serafina v1.1-mini**, running directly inside your browser via on-device SmolLM2 (135M). Everything here stays 100% private and offline on your machine. What can I help you think through today?`;
-    } else if (lower.includes('who are you') || lower.includes('what are you')) {
-      responseBody = `I am **Serafina v1.1-mini**, an ultra-lightweight client-side model running entirely on your device's browser memory via SmolLM2-135M. I don't send your prompts to any server!`;
-    } else if (lower.includes('math') || lower.includes('equation') || lower.includes('formula') || lower.includes('integral')) {
-      responseBody = `Here is a mathematical solution for your exploration:\n\n$$f(x) = \\int_0^x \\frac{\\sin(t)}{t} \\, dt$$\n\nFor small arguments, the Taylor expansion yields:\n$$\\mathrm{Si}(x) \\approx x - \\frac{x^3}{18} + \\frac{x^5}{600} + \\mathcal{O}(x^7)$$\n\nComputed entirely client-side on your local device hardware.`;
-    } else {
-      responseBody = `I received your thought: "*${query}*".\n\nAs **Serafina v1.1-mini (SmolLM2-135M)**, I process this locally right here in your browser sandbox without network latency or external API calls.\n\n- **Architecture**: SmolLM2 (135M parameters)\n- **Execution**: Local Web Runtime\n- **Privacy**: Zero external data transfer\n\nFeel free to explore creative prompts, code snippets, or quick explanations with me!`;
-    }
-  } else if (modelId.includes('360M')) {
-    // Serafina v1.2-mini (SmolLM2-360M)
-    if (lower.includes('hello') || lower.includes('hi') || lower.includes('hey')) {
-      responseBody = `Greetings! I am **Serafina v1.2-mini**, powered by the SmolLM2 (360M) architecture executing locally on your device. Zero cloud dependency, rapid responses, and complete data sovereignty. How shall we begin?`;
-    } else if (lower.includes('who are you') || lower.includes('what are you')) {
-      responseBody = `I'm **Serafina v1.2-mini**, an on-device Small Language Model built on SmolLM2-360M. My weights are cached in your browser's persistent storage, enabling high-speed local inference directly on your CPU/GPU.`;
-    } else if (lower.includes('math') || lower.includes('equation') || lower.includes('derivative') || lower.includes('calc')) {
-      responseBody = `Let's analyze the mathematical structure:\n\n$$\\nabla \\cdot \\mathbf{E} = \\frac{\\rho}{\\varepsilon_0}$$\n$$\\nabla \\times \\mathbf{B} = \\mu_0 \\mathbf{J} + \\mu_0 \\varepsilon_0 \\frac{\\partial \\mathbf{E}}{\\partial t}$$\n\nNotice how the displacement current term ensures continuity of charge: $\\nabla \\cdot \\mathbf{J} + \\frac{\\partial \\rho}{\\partial t} = 0$. Evaluated on-device in real-time.`;
-    } else {
-      responseBody = `Here is my analysis on "*${query}*":\n\n1. **Core Concept**: Processing your input with localized attention heads in SmolLM2 (360M).\n2. **Synthesis**: Delivering balanced, nuanced comprehension while running completely on-device without remote servers.\n3. **Application**: You can draft notes, solve logic problems, or brainstorm without needing an internet connection.\n\nWhat aspect would you like to dig into further?`;
-    }
-  } else {
-    // Distil v0.5-mini (Qwen2.5-0.5B)
-    if (lower.includes('hello') || lower.includes('hi') || lower.includes('hey')) {
-      responseBody = `Yo. **Distil v0.5-mini** online. Running the Qwen2.5-0.5B model right here in your browser runtime. Fast, pragmatic, and entirely local. What system or bug are we tackling?`;
-    } else if (lower.includes('who are you') || lower.includes('what are you')) {
-      responseBody = `I'm **Distil v0.5-mini**, the on-device edition of Distil running Qwen2.5 (0.5B parameters). Everything runs in your browser engine with near-zero latency and total offline autonomy.`;
-    } else if (lower.includes('code') || lower.includes('javascript') || lower.includes('typescript') || lower.includes('rust')) {
-      responseBody = `Here's a clean, efficient implementation pattern for you:\n\n\`\`\`typescript\n// Local reactive state cache\nexport class LocalStore<T> {\n  private data: Map<string, T> = new Map();\n  \n  get(key: string): T | undefined {\n    return this.data.get(key);\n  }\n  \n  set(key: string, value: T): void {\n    this.data.set(key, value);\n  }\n}\n\`\`\`\n\nOptimized for low overhead and quick memory footprint.`;
-    } else {
-      responseBody = `Inspecting query: "*${query}*".\n\n**Distil v0.5-mini Engine (Qwen2.5-0.5B)** breakdown:\n- **Execution Environment**: Client-side WASM/Web engine\n- **Latency**: Direct memory pipeline, no remote roundtrips\n- **Reliability**: Fully functional offline\n\nGive me code to review, algorithms to discuss, or architecture to test.`;
+    return { text: finalText, telemetry: finalTelemetry };
+  } catch (err: any) {
+    console.error(`[SLM Inference Error]:`, err);
+    throw new Error(`On-device SLM inference error: ${err?.message || err}`);
+  } finally {
+    if (activeStoppingCriteria === stopping_criteria) {
+      activeStoppingCriteria = null;
     }
   }
-
-  // Tokenize response into words/chunks
-  const rawWords = responseBody.split(/(\s+)/);
-  const tokens: string[] = [];
-
-  for (const part of rawWords) {
-    if (!part) continue;
-    if (tokens.length >= maxTokens) break;
-    tokens.push(part);
-  }
-
-  return tokens;
 }
