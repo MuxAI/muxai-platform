@@ -87,6 +87,7 @@ import { TOOL_DEFINITIONS, executeTool, getBrowserInfo } from './lib/tools';
 import { formatFileForContext } from './lib/fileParser';
 import {
   loadConversations,
+  saveConversations,
   createConversation,
   deleteConversation,
   updateConversation,
@@ -398,19 +399,55 @@ export default function App() {
 
     if (path.startsWith('/chat')) {
       setCurrentPath('/chat');
-      if (urlChatId && convs.some((c) => c.id === urlChatId)) {
-        setActiveId(urlChatId);
+      if (urlChatId) {
+        const found = convs.find((c) => c.id === urlChatId);
+        if (found) {
+          setActiveId(found.id);
+          if (found.personaId) setSelectedPersona(found.personaId);
+        } else {
+          // Initialize conversation with requested ID if it doesn't exist yet
+          const newConv: Conversation = {
+            id: urlChatId,
+            title: 'New chat',
+            personaId: selectedPersona || 'Sera16',
+            messages: [],
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          };
+          const updatedConvs = [newConv, ...convs];
+          setConversations(updatedConvs);
+          saveConversations(updatedConvs);
+          setActiveId(newConv.id);
+        }
       } else if (convs.length > 0) {
         setActiveId(convs[0].id);
+      } else {
+        const newConv = createConversation('New chat', selectedPersona || 'Sera16');
+        setConversations([newConv]);
+        saveConversations([newConv]);
+        setActiveId(newConv.id);
       }
     } else {
       // On landing page or other path
       if (urlChatId) {
         // Redirect legacy ?chat= or ?id= on root to /chat?id=...
-        if (convs.some((c) => c.id === urlChatId)) {
-          setActiveId(urlChatId);
-        } else if (convs.length > 0) {
-          setActiveId(convs[0].id);
+        const found = convs.find((c) => c.id === urlChatId);
+        if (found) {
+          setActiveId(found.id);
+          if (found.personaId) setSelectedPersona(found.personaId);
+        } else {
+          const newConv: Conversation = {
+            id: urlChatId,
+            title: 'New chat',
+            personaId: selectedPersona || 'Sera16',
+            messages: [],
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          };
+          const updatedConvs = [newConv, ...convs];
+          setConversations(updatedConvs);
+          saveConversations(updatedConvs);
+          setActiveId(newConv.id);
         }
         navigateTo('/chat', `?id=${urlChatId}`);
       } else {

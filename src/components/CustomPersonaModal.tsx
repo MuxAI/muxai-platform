@@ -41,6 +41,7 @@ export function CustomPersonaModal({
   const [systemPrompt, setSystemPrompt] = useState('');
   const [customPortrait, setCustomPortrait] = useState<string>('');
   const [customLogo, setCustomLogo] = useState<string>('');
+  const [gender, setGender] = useState<'female' | 'male'>('female');
 
   // Warning acknowledgment state
   const [warnAcknowledged, setWarnAcknowledged] = useState(false);
@@ -68,6 +69,7 @@ export function CustomPersonaModal({
       );
       setCustomPortrait(personaToEdit.customPortrait || '');
       setCustomLogo(personaToEdit.customLogo || '');
+      setGender(personaToEdit.gender || 'female');
       setWarnAcknowledged(true);
     } else {
       setName('');
@@ -76,6 +78,7 @@ export function CustomPersonaModal({
       setSystemPrompt('You are an expert conversational companion who is insightful, friendly, and articulate.');
       setCustomPortrait('');
       setCustomLogo('');
+      setGender('female');
       setWarnAcknowledged(false);
     }
   }, [personaToEdit, isOpen]);
@@ -129,6 +132,7 @@ export function CustomPersonaModal({
       badgeColor: '#ec4899',
       customPortrait: customPortrait || undefined,
       customLogo: customLogo || undefined,
+      gender,
       isCustom: true,
     };
 
@@ -221,6 +225,37 @@ export function CustomPersonaModal({
                 onChange={(e) => setDesc(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl themed-modal-input border focus:border-pink-500 text-sm outline-none transition-colors"
               />
+            </div>
+
+            {/* Voice Gender Selection (Default voice synthesis) */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider themed-modal-muted mb-1.5">
+                Voice Gender (Speech Synthesis)
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setGender('female')}
+                  className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    gender === 'female'
+                      ? 'border-pink-500 bg-pink-500/15 text-pink-500 shadow-xs'
+                      : 'border-slate-300 dark:border-slate-700 themed-btn opacity-70 hover:opacity-100'
+                  }`}
+                >
+                  <span>Female</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGender('male')}
+                  className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    gender === 'male'
+                      ? 'border-blue-500 bg-blue-500/15 text-blue-500 shadow-xs'
+                      : 'border-slate-300 dark:border-slate-700 themed-btn opacity-70 hover:opacity-100'
+                  }`}
+                >
+                  <span>Male</span>
+                </button>
+              </div>
             </div>
 
             {/* Images: Portrait (9:14) and Logo/Avatar (1:1) with Interactive Cropper */}

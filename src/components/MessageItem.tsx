@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { Message } from '../types';
 import { Logo, UserAvatar } from './Logo';
+import { getPersonaById } from '../lib/constants';
+import { speakPersonaMessage, stopSpeaking } from '../lib/speech';
 
 interface MessageItemProps {
   message: Message;
@@ -78,18 +80,18 @@ export function MessageItem({
   const handleSpeak = () => {
     if (!('speechSynthesis' in window)) return;
     if (speaking) {
-      window.speechSynthesis.cancel();
+      stopSpeaking();
       setSpeaking(false);
       return;
     }
-    const cleanText = message.content.replace(/[#*`$_[\]()]/g, '');
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.rate = 1.0;
-    utterance.pitch = effectivePersona.includes('Distil') ? 0.9 : 1.1;
-    utterance.onend = () => setSpeaking(false);
-    utterance.onerror = () => setSpeaking(false);
+    const personaObj = getPersonaById(effectivePersona);
     setSpeaking(true);
-    window.speechSynthesis.speak(utterance);
+    speakPersonaMessage(
+      message.content,
+      personaObj,
+      () => setSpeaking(false),
+      () => setSpeaking(false)
+    );
   };
 
   return (

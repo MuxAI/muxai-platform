@@ -61,6 +61,17 @@ export interface Conversation {
   chessOpponentId?: string;
 }
 
+export type PersonaGender = 'female' | 'male';
+
+export interface VoiceProfile {
+  gender: PersonaGender;
+  pitch: number;
+  rate: number;
+  lang?: string;
+  preferredVoiceNames?: string[];
+  profileDescription?: string;
+}
+
 export interface Persona {
   id: string;
   name: string;
@@ -80,6 +91,8 @@ export interface Persona {
   slmModelName?: string;
   slmSize?: string;
   slmSizeBytes?: number;
+  gender?: PersonaGender;
+  voiceProfile?: VoiceProfile;
 }
 
 export interface ThemeDefinition {

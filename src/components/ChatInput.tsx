@@ -12,9 +12,12 @@ import {
   Wrench,
   Sliders,
   Sparkles,
+  Mic,
+  MicOff,
 } from 'lucide-react';
 import { Attachment, ModelOptions } from '../types';
 import { ACCEPTED_FILE_TYPES, parseFile, formatBytes } from '../lib/fileParser';
+import { createSpeechRecognizer, SpeechRecognizerController } from '../lib/speech';
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
 const MAX_FILES = 5;
@@ -55,6 +58,57 @@ export function ChatInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const effectiveDisabled = disabled || !isOnline;
+
+  const [isListening, setIsListening] = useState(false);
+  const [micError, setMicError] = useState<string | null>(null);
+  const recognizerRef = useRef<SpeechRecognizerController | null>(null);
+  const baseValueBeforeSpeechRef = useRef('');
+
+  useEffect(() => {
+    return () => {
+      if (recognizerRef.current) {
+        recognizerRef.current.stop();
+      }
+    };
+  }, []);
+
+  const toggleListening = () => {
+    if (isListening) {
+      if (recognizerRef.current) {
+        recognizerRef.current.stop();
+      }
+      setIsListening(false);
+      return;
+    }
+
+    setMicError(null);
+    baseValueBeforeSpeechRef.current = value;
+
+    const recognizer = createSpeechRecognizer(
+      (transcript, isFinal) => {
+        const base = baseValueBeforeSpeechRef.current.trim();
+        const separator = base ? ' ' : '';
+        const updated = base ? `${base}${separator}${transcript}` : transcript;
+        setValue(updated);
+        if (isFinal) {
+          baseValueBeforeSpeechRef.current = updated;
+        }
+      },
+      () => {
+        setIsListening(false);
+      },
+      (errorMsg) => {
+        setIsListening(false);
+        setMicError(errorMsg);
+      }
+    );
+
+    recognizerRef.current = recognizer;
+    if (recognizer.isSupported) {
+      recognizer.start();
+      setIsListening(true);
+    }
+  };
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -131,6 +185,12 @@ export function ChatInput({
 
   const submit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (isListening) {
+      if (recognizerRef.current) {
+        recognizerRef.current.stop();
+      }
+      setIsListening(false);
+    }
     if (isSLM && isGenerating) return;
     const hasText = value.trim().length > 0;
     const readyAttachments = isSLM ? [] : attachments.filter((a) => !a.error && !a.parsing);
@@ -162,6 +222,43 @@ export function ChatInput({
           onChange={(e) => handleFiles(Array.from(e.target.files || []))}
           className="hidden"
         />
+
+        {/* Microphone Permission / Error Helper Banner */}
+        <AnimatePresence>
+          {micError && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              className="mb-2 p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-500 text-xs flex items-center justify-between gap-3 shadow-lg backdrop-blur-md"
+            >
+              <div className="flex items-center gap-2.5">
+                <MicOff size={16} className="shrink-0 text-rose-500" />
+                <span className="leading-relaxed">{micError}</span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMicError(null);
+                    toggleListening();
+                  }}
+                  className="px-2.5 py-1 rounded-xl bg-rose-500 text-white font-bold text-[11px] hover:bg-rose-600 active:scale-95 transition-all shadow-xs"
+                >
+                  Retry
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMicError(null)}
+                  className="p-1 rounded-full opacity-60 hover:opacity-100 transition-opacity"
+                  title="Dismiss"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Attachment Previews */}
         <AnimatePresence>
@@ -421,6 +518,25 @@ export function ChatInput({
             disabled={effectiveDisabled || (isSLM && isGenerating)}
             className="flex-1 bg-transparent outline-none resize-none font-normal text-sm sm:text-base py-2 max-h-44 disabled:opacity-50 disabled:cursor-not-allowed themed-text min-h-[26px]"
           />
+
+          {/* Voice-to-Text Microphone Button (Web Speech API) */}
+          <button
+            type="button"
+            onClick={toggleListening}
+            disabled={effectiveDisabled || (isSLM && isGenerating)}
+            className={`w-10 h-10 sm:w-11 sm:h-11 shrink-0 rounded-full flex items-center justify-center transition-all hover:scale-105 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer ${
+              isListening
+                ? 'bg-rose-500/20 text-rose-500 border border-rose-500/50 shadow-md animate-pulse'
+                : 'themed-btn hover:text-pink-500'
+            }`}
+            title={isListening ? 'Listening... Tap to stop speech recognition' : 'Voice input (Speech to Text)'}
+          >
+            {isListening ? (
+              <MicOff size={19} className="text-rose-500" />
+            ) : (
+              <Mic size={19} />
+            )}
+          </button>
 
           {isSLM && isGenerating ? (
             <button

@@ -649,12 +649,27 @@ app.post('/api/verify-wife', (req: Request, res: Response) => {
 // 9. Server & Vite Frontend Initialization
 async function initServer() {
   if (process.env.NODE_ENV !== 'production') {
+    const fs = await import('fs');
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
+
+    // Development SPA fallback for client-side routes like /chat
+    app.use('*', async (req, res, next) => {
+      if (req.method !== 'GET') return next();
+      const url = req.originalUrl;
+      try {
+        let template = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf-8');
+        template = await vite.transformIndexHtml(url, template);
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+      } catch (e: any) {
+        vite.ssrFixStacktrace(e);
+        next(e);
+      }
+    });
   } else {
     const distPath = path.resolve(process.cwd(), 'dist');
     app.use(express.static(distPath));
