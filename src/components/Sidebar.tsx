@@ -29,6 +29,7 @@ interface SidebarProps {
   isOnline: boolean;
   onStartAIDuel?: () => void;
   onStartChess?: () => void;
+  onGoHome?: () => void;
 }
 
 export function Sidebar({
@@ -43,6 +44,7 @@ export function Sidebar({
   isOnline,
   onStartAIDuel,
   onStartChess,
+  onGoHome,
 }: SidebarProps) {
   const [search, setSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -109,7 +111,11 @@ export function Sidebar({
       >
         {/* Header */}
         <div className="p-4 flex items-center justify-between border-b border-inherit">
-          <div className="flex items-center gap-2.5">
+          <div
+            onClick={onGoHome}
+            className="flex items-center gap-2.5 cursor-pointer hover:opacity-85 transition-opacity"
+            title="Go to MuxAI Home"
+          >
             <Logo isMain size={30} />
             <div>
               <h1 className="font-bold text-base tracking-tight leading-none themed-sidebar-text">

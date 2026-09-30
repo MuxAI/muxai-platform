@@ -179,33 +179,34 @@ export function CustomPersonaModal({
           </div>
 
           <form onSubmit={handleSubmit} className="mt-5 space-y-4 max-h-[65vh] overflow-y-auto pr-1">
-            {/* Persona Name */}
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider themed-modal-muted mb-1.5">
-                Persona Name *
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Maya, Dr. Atlas, Nova"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl themed-modal-input border focus:border-pink-500 text-sm outline-none transition-colors"
-              />
-            </div>
+            {/* Persona Name & Role / Title on the same line */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider themed-modal-muted mb-1.5">
+                  Persona Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Maya, Dr. Atlas, Nova"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl themed-modal-input border focus:border-pink-500 text-sm outline-none transition-colors"
+                />
+              </div>
 
-            {/* Role / Subtitle */}
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider themed-modal-muted mb-1.5">
-                Role / Title
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Creative Muse, Quantum Physicist, Caring Friend"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl themed-modal-input border focus:border-pink-500 text-sm outline-none transition-colors"
-              />
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider themed-modal-muted mb-1.5">
+                  Role / Title
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Creative Muse, Quantum Physicist, Caring Friend"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl themed-modal-input border focus:border-pink-500 text-sm outline-none transition-colors"
+                />
+              </div>
             </div>
 
             {/* Short Card Description */}

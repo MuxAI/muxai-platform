@@ -388,7 +388,7 @@ export function ChatInput({
         {slmStatusBar}
 
         {/* Input Pill Container */}
-        <div className="flex items-end gap-2 border rounded-3xl shadow-xl transition-all pl-2.5 sm:pl-3.5 pr-2.5 py-2.5 themed-input backdrop-blur-xl">
+        <div className="relative z-10 flex items-end gap-2 border rounded-3xl shadow-xl transition-all pl-2.5 sm:pl-3.5 pr-2.5 py-2.5 themed-input backdrop-blur-xl">
           <button
             type="button"
             onClick={() => setMenuOpen((v) => !v)}

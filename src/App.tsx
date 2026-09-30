@@ -49,6 +49,7 @@ import { SLMStatusBar } from './components/SLMStatusBar';
 import { SLMConfirmModal } from './components/SLMConfirmModal';
 import { SLMManageModal } from './components/SLMManageModal';
 import { DataTransferModal } from './components/DataTransferModal';
+import { LandingPage } from './components/LandingPage';
 import {
   isSLMDownloaded,
   getSLMSpecByPersonaId,
@@ -178,12 +179,28 @@ function getTimeGreeting(): string {
 }
 
 export default function App() {
+  const [currentPath, setCurrentPath] = useState<string>(() => window.location.pathname);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const activeIdRef = useRef<string | null>(null);
   const latestMessagesRef = useRef<Message[]>([]);
   const activeSLMConvIdRef = useRef<string | null>(null);
+
+  // Sync browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPath(window.location.pathname);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigateTo = (path: string, search?: string) => {
+    const newUrl = search ? `${path}${search}` : path;
+    window.history.pushState({}, '', newUrl);
+    setCurrentPath(path);
+  };
 
   useEffect(() => {
     activeIdRef.current = activeId;
@@ -376,24 +393,81 @@ export default function App() {
       setAutoConfig({ p1: 'Distil_husband', p2: 'Sera16_wife' });
     }
 
-    const urlChatId = params.get('chat');
-    if (urlChatId && convs.some((c) => c.id === urlChatId)) {
-      setActiveId(urlChatId);
-    } else if (convs.length > 0) {
-      setActiveId(convs[0].id);
+    const urlChatId = params.get('id') || params.get('chat');
+    const path = window.location.pathname;
+
+    if (path.startsWith('/chat')) {
+      setCurrentPath('/chat');
+      if (urlChatId && convs.some((c) => c.id === urlChatId)) {
+        setActiveId(urlChatId);
+      } else if (convs.length > 0) {
+        setActiveId(convs[0].id);
+      }
+    } else {
+      // On landing page or other path
+      if (urlChatId) {
+        // Redirect legacy ?chat= or ?id= on root to /chat?id=...
+        if (convs.some((c) => c.id === urlChatId)) {
+          setActiveId(urlChatId);
+        } else if (convs.length > 0) {
+          setActiveId(convs[0].id);
+        }
+        navigateTo('/chat', `?id=${urlChatId}`);
+      } else {
+        setCurrentPath('/');
+        if (convs.length > 0) {
+          setActiveId(convs[0].id);
+        }
+      }
     }
   }, []);
 
-  // Sync active chat in URL
+  // Sync active chat in URL under /chat?id=...
   useEffect(() => {
-    const url = new URL(window.location.href);
-    if (activeId) {
-      url.searchParams.set('chat', activeId);
-    } else {
-      url.searchParams.delete('chat');
+    if (currentPath.startsWith('/chat')) {
+      const url = new URL(window.location.href);
+      url.pathname = '/chat';
+      url.searchParams.delete('chat'); // remove legacy parameter
+      if (activeId) {
+        url.searchParams.set('id', activeId);
+      } else {
+        url.searchParams.delete('id');
+      }
+      window.history.replaceState({}, '', url.toString());
     }
-    window.history.replaceState({}, '', url.toString());
-  }, [activeId]);
+  }, [activeId, currentPath]);
+
+  const handleOpenChat = (personaId?: string) => {
+    if (personaId) {
+      setSelectedPersona(personaId);
+      const existing = conversations.find((c) => c.personaId === personaId);
+      if (existing) {
+        setActiveId(existing.id);
+        navigateTo('/chat', `?id=${existing.id}`);
+      } else {
+        const newConv = createConversation(personaId);
+        setConversations((prev) => [newConv, ...prev]);
+        setActiveId(newConv.id);
+        navigateTo('/chat', `?id=${newConv.id}`);
+      }
+    } else {
+      if (activeId) {
+        navigateTo('/chat', `?id=${activeId}`);
+      } else if (conversations.length > 0) {
+        setActiveId(conversations[0].id);
+        navigateTo('/chat', `?id=${conversations[0].id}`);
+      } else {
+        const newConv = createConversation(selectedPersona);
+        setConversations([newConv]);
+        setActiveId(newConv.id);
+        navigateTo('/chat', `?id=${newConv.id}`);
+      }
+    }
+  };
+
+  const handleGoHome = () => {
+    navigateTo('/');
+  };
 
   // Sync active messages
   useEffect(() => {
@@ -1808,6 +1882,25 @@ export default function App() {
     : [];
   const lastChessMove = currentChessState.history[currentChessState.history.length - 1] || null;
 
+  // Render Landing Page if current path is root / (not /chat)
+  if (!currentPath.startsWith('/chat')) {
+    return (
+      <div className="themed-bg themed-text h-screen w-screen overflow-hidden relative select-text">
+        {graphicsQuality === 'fancy' && (
+          <NavierStokesGlyphs className="z-0 pointer-events-none opacity-40 fixed inset-0" />
+        )}
+        <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+          <div className="themed-aurora-1 absolute -top-1/4 -left-1/4 w-[520px] h-[520px] sm:w-[680px] sm:h-[680px] rounded-full blur-[140px] animate-aurora-1" />
+          <div className="themed-aurora-2 absolute top-1/3 -right-1/4 w-[480px] h-[480px] sm:w-[580px] sm:h-[580px] rounded-full blur-[140px] animate-aurora-2" />
+          <div className="themed-aurora-3 absolute -bottom-1/4 left-1/3 w-[480px] h-[480px] sm:w-[600px] sm:h-[600px] rounded-full blur-[140px] animate-aurora-3" />
+        </div>
+        <div className="themed-grid-bg fixed inset-0 z-0 pointer-events-none opacity-40" />
+
+        <LandingPage onOpenChat={handleOpenChat} activeTheme={theme} />
+      </div>
+    );
+  }
+
   return (
     <div className="themed-bg themed-text h-screen w-screen overflow-hidden relative select-text">
       {/* Navier-Stokes Fluid Glyphs Simulation snaking in background */}
@@ -1837,6 +1930,7 @@ export default function App() {
         isOnline={isOnline}
         onStartAIDuel={() => setIsAIToAIModalOpen(true)}
         onStartChess={() => setIsChessModalOpen(true)}
+        onGoHome={handleGoHome}
       />
 
       {/* Right Settings & Theme Submenu Sidebar */}
@@ -1872,7 +1966,7 @@ export default function App() {
       <div className="absolute inset-0 flex flex-col z-10">
         {/* Top Navbar */}
         <header className="themed-header flex items-center justify-between p-3 sm:p-4 border-b backdrop-blur-xl shrink-0 z-20">
-          <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-2.5">
             <button
               onClick={() => setSidebarOpen((v) => !v)}
               className="themed-burger p-2 rounded-xl border border-transparent hover:border-zinc-500/20 transition-all hover:scale-105 active:scale-95"
@@ -1881,8 +1975,10 @@ export default function App() {
               <Menu size={20} />
             </button>
 
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl overflow-hidden shadow-sm shrink-0 border border-zinc-500/20 flex items-center justify-center">
+            <div className="flex items-center gap-2.5 ml-1">
+              <div
+                className="w-8 h-8 rounded-xl overflow-hidden shadow-sm shrink-0 border border-zinc-500/20 flex items-center justify-center"
+              >
                 <Logo personaId={currentPersonaId} size={32} />
               </div>
               <div>
